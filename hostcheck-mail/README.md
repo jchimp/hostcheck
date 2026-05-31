@@ -2,7 +2,7 @@
 
 A standalone Bash script that runs on each Postfix relay host via cron, monitors mail service health, and fires alerts via Telegram and/or email when problems are found.
 
-Same format, same structure, same notification pipeline as host-healthcheck and host-seccheck — but focused on Postfix and mail relay operations.
+Same format, same structure, same notification pipeline as hostcheck-health and hostcheck-sec — but focused on Postfix and mail relay operations.
 
 No infrastructure dependencies. No agents. Just one script, one config file, and cron.
 
@@ -28,21 +28,21 @@ No infrastructure dependencies. No agents. Just one script, one config file, and
 ## File layout
 
 ```
-host-mailcheck/
-├── host-mailcheck.sh            # Main mail check script
-├── host-mailcheck.conf          # Configuration file
-├── install-mailcheck.sh         # Installer (copies files, sets up cron)
+hostcheck-mail/
+├── hostcheck-mail.sh            # Main mail check script
+├── hostcheck-mail.conf          # Configuration file
+├── install-mail.sh              # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/host-mailcheck.sh            # Executable
-/etc/host-mailcheck/host-mailcheck.conf     # Config (chmod 600)
-/etc/cron.d/host-mailcheck                  # Cron job (every 5 min)
-/var/lib/host-mailcheck/                    # State files (offsets, baselines, cooldowns)
-/var/log/host-mailcheck.log                 # Local log
+/usr/local/bin/hostcheck-mail.sh            # Executable
+/etc/hostcheck/hostcheck-mail.conf          # Config (chmod 600)
+/etc/cron.d/hostcheck-mail                  # Cron job (every 5 min)
+/var/lib/hostcheck-mail/                    # State files (offsets, baselines, cooldowns)
+/var/log/hostcheck-mail.log                 # Local log
 ```
 
 ---
@@ -53,19 +53,19 @@ After installation:
 
 ```bash
 # Copy files to the host
-scp -r host-mailcheck/ root@<host>:/tmp/
+scp -r hostcheck-mail/ root@<host>:/tmp/
 
 # SSH in and run the installer
 ssh root@<host>
-cd /tmp/host-mailcheck
-chmod +x install-mailcheck.sh
-./install-mailcheck.sh
+cd /tmp/hostcheck-mail
+chmod +x install-mail.sh
+./install-mail.sh
 ```
 
 ### Configure
 
 ```bash
-vi /etc/host-mailcheck/host-mailcheck.conf
+vi /etc/hostcheck/hostcheck-mail.conf
 ```
 
 At minimum, set:
@@ -81,13 +81,13 @@ TELEGRAM_CHAT_ID="987654321"
 
 ```bash
 # Dry run (no notifications sent)
-host-mailcheck.sh --dry-run
+hostcheck-mail.sh --dry-run
 
 # Live run
-host-mailcheck.sh
+hostcheck-mail.sh
 
 # Watch the log
-tail -f /var/log/host-mailcheck.log
+tail -f /var/log/hostcheck-mail.log
 ```
 
 ---
@@ -155,7 +155,7 @@ The script performs a **TCP connect test only** — it does not send SMTP comman
 
 ## How delta tracking works (mail log)
 
-Same approach as host-seccheck:
+Same approach as hostcheck-sec:
 
 1. Store the current line count of the mail log in a state file
 2. On the next run, only read lines added since the last offset
@@ -213,20 +213,20 @@ Example: if the queue was 5 and is now 30, that's a growth of 25 → alert fires
 | `SPOOL_WARN_PCT` | `80` | Spool disk warning threshold (%) |
 | `SPOOL_CRIT_PCT` | `95` | Spool disk critical threshold (%) |
 | `MAIL_LOG` | *(empty)* | Mail log path (empty = auto-detect) |
-| `STATE_DIR` | `/var/lib/host-mailcheck` | State file directory |
-| `LOG_FILE` | `/var/log/host-mailcheck.log` | Local log file path |
+| `STATE_DIR` | `/var/lib/hostcheck-mail` | State file directory |
+| `LOG_FILE` | `/var/log/hostcheck-mail.log` | Local log file path |
 
 ---
 
-## Pairing with host-healthcheck and host-seccheck
+## Pairing with hostcheck-health and hostcheck-sec
 
 All three scripts are designed to work side-by-side:
 
 | Script | Focus | Cron | Log | State |
 |---|---|---|---|---|
-| `host-healthcheck.sh` | Hardware / services | every 5 min | `/var/log/host-healthcheck.log` | `/var/lib/host-healthcheck/` |
-| `host-seccheck.sh` | Security / auth / drift | every 15 min | `/var/log/host-seccheck.log` | `/var/lib/host-seccheck/` |
-| `host-mailcheck.sh` | Postfix / relay health | every 5 min | `/var/log/host-mailcheck.log` | `/var/lib/host-mailcheck/` |
+| `hostcheck-health.sh` | Hardware / services | every 5 min | `/var/log/hostcheck-health.log` | `/var/lib/hostcheck-health/` |
+| `hostcheck-sec.sh` | Security / auth / drift | every 15 min | `/var/log/hostcheck-sec.log` | `/var/lib/hostcheck-sec/` |
+| `hostcheck-mail.sh` | Postfix / relay health | every 5 min | `/var/log/hostcheck-mail.log` | `/var/lib/hostcheck-mail/` |
 
 They share the same notification config format, so you can copy your Telegram credentials between them.
 
@@ -280,8 +280,8 @@ Time: 2026-05-31 09:20:02
 
 ### No alerts are being sent
 
-- Run manually: `sudo host-mailcheck.sh`
-- Check the log: `tail -50 /var/log/host-mailcheck.log`
+- Run manually: `sudo hostcheck-mail.sh`
+- Check the log: `tail -50 /var/log/hostcheck-mail.log`
 - Look for `COOLDOWN` entries — the alert may be within cooldown
 - Verify Telegram credentials: `curl "https://api.telegram.org/bot<TOKEN>/getMe"`
 
@@ -308,7 +308,7 @@ Time: 2026-05-31 09:20:02
 The script detects the failure via SASL error patterns, but it **cannot refresh the token** for you. You'll need to:
 1. Refresh the OAuth token via your token refresh script
 2. Restart Postfix if needed
-3. Run `host-mailcheck.sh --reset-baseline` to clear the mail log offset
+3. Run `hostcheck-mail.sh --reset-baseline` to clear the mail log offset
 
 ### Queue keeps growing
 
@@ -334,11 +334,11 @@ This usually means relay delivery is failing. Check:
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/host-mailcheck.sh
-rm -f /etc/cron.d/host-mailcheck
-rm -rf /etc/host-mailcheck
-rm -rf /var/lib/host-mailcheck
-rm -f /var/log/host-mailcheck.log
+rm -f /usr/local/bin/hostcheck-mail.sh
+rm -f /etc/cron.d/hostcheck-mail
+rm -f /etc/hostcheck/hostcheck-mail.conf
+rm -rf /var/lib/hostcheck-mail
+rm -f /var/log/hostcheck-mail.log
 ```
 
 ---
@@ -347,11 +347,11 @@ rm -f /var/log/host-mailcheck.log
 
 | Action | Command |
 |---|---|
-| Run manually | `sudo host-mailcheck.sh` |
-| Dry run | `sudo host-mailcheck.sh --dry-run` |
-| Custom config | `sudo host-mailcheck.sh --config /path/to/conf` |
-| Reset baselines | `sudo host-mailcheck.sh --reset-baseline` |
-| Edit config | `vi /etc/host-mailcheck/host-mailcheck.conf` |
-| View log | `tail -f /var/log/host-mailcheck.log` |
-| Check cron | `cat /etc/cron.d/host-mailcheck` |
-| Clear cooldowns | `rm /var/lib/host-mailcheck/cooldown_*` |
+| Run manually | `sudo hostcheck-mail.sh` |
+| Dry run | `sudo hostcheck-mail.sh --dry-run` |
+| Custom config | `sudo hostcheck-mail.sh --config /path/to/conf` |
+| Reset baselines | `sudo hostcheck-mail.sh --reset-baseline` |
+| Edit config | `vi /etc/hostcheck/hostcheck-mail.conf` |
+| View log | `tail -f /var/log/hostcheck-mail.log` |
+| Check cron | `cat /etc/cron.d/hostcheck-mail` |
+| Clear cooldowns | `rm /var/lib/hostcheck-mail/cooldown_*` |

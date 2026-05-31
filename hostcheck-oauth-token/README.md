@@ -5,7 +5,7 @@ A standalone Bash script that monitors OAuth2 token health for Postfix relays us
 Designed for M365 OAuth relay setups following guides like:
 - [Postfix + OAuth2: Relay Emails to Microsoft 365 (Debian 13)](https://std.rocks/relay-ms365-oauth-debian-13.html)
 
-Same format, same notification pipeline as host-healthcheck, host-seccheck, and host-mailcheck.
+Same format, same notification pipeline as hostcheck-health, hostcheck-sec, and hostcheck-mail.
 
 ---
 
@@ -62,21 +62,21 @@ The token file is JSON and typically looks like:
 ## File layout
 
 ```
-oauth-token-monitor/
-├── oauth-token-monitor.sh       # Main script
-├── oauth-token-monitor.conf     # Configuration
-├── install-oauth-token-monitor.sh  # Installer
-└── README.md                    # This file
+hostcheck-oauth-token/
+├── hostcheck-oauth-token.sh       # Main script
+├── hostcheck-oauth-token.conf     # Configuration
+├── install-oauth-token.sh         # Installer
+└── README.md                      # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/oauth-token-monitor.sh               # Executable
-/etc/oauth-token-monitor/oauth-token-monitor.conf    # Config (chmod 600)
-/etc/cron.d/oauth-token-monitor                      # Cron job (every 30 min)
-/var/lib/oauth-token-monitor/                        # State files (cooldowns)
-/var/log/oauth-token-monitor.log                     # Local log
+/usr/local/bin/hostcheck-oauth-token.sh       # Executable
+/etc/hostcheck/hostcheck-oauth-token.conf     # Config (chmod 600)
+/etc/cron.d/hostcheck-oauth-token             # Cron job (every 30 min)
+/var/lib/hostcheck-oauth-token/               # State files (cooldowns)
+/var/log/hostcheck-oauth-token.log            # Local log
 ```
 
 ---
@@ -84,16 +84,20 @@ After installation:
 ## Installation
 
 ```bash
-tar xzf oauth-token-monitor.tar.gz
-cd oauth-token-monitor/
-chmod +x install-oauth-token-monitor.sh
-sudo ./install-oauth-token-monitor.sh
+# Copy files to the host
+scp -r hostcheck-oauth-token/ root@<host>:/tmp/
+
+# SSH in and run the installer
+ssh root@<host>
+cd /tmp/hostcheck-oauth-token
+chmod +x install-oauth-token.sh
+./install-oauth-token.sh
 ```
 
 ### Configure
 
 ```bash
-sudo vi /etc/oauth-token-monitor/oauth-token-monitor.conf
+sudo vi /etc/hostcheck/hostcheck-oauth-token.conf
 ```
 
 At minimum, set:
@@ -122,13 +126,13 @@ postconf smtp_sasl_password_maps
 
 ```bash
 # Dry run
-sudo oauth-token-monitor.sh --dry-run
+sudo hostcheck-oauth-token.sh --dry-run
 
 # Live run
-sudo oauth-token-monitor.sh
+sudo hostcheck-oauth-token.sh
 
 # Force a token refresh test (hits Microsoft API)
-sudo oauth-token-monitor.sh --check-refresh
+sudo hostcheck-oauth-token.sh --check-refresh
 ```
 
 ---
@@ -154,7 +158,7 @@ Disabled by default (`CHECK_TOKEN_REFRESH="false"`) because it hits Microsoft's 
 ### When to enable it
 
 - If you want a **definitive** answer on whether the refresh cycle works
-- As a manual check: `sudo oauth-token-monitor.sh --check-refresh`
+- As a manual check: `sudo hostcheck-oauth-token.sh --check-refresh`
 - On a schedule: enable in config, but be aware it counts against API rate limits
 
 ### Requirements for refresh test
@@ -182,7 +186,7 @@ CHECK_TOKEN_REFRESH="true"
 | `EMAIL_TO` | `admin@example.com` | Email recipient |
 | `EMAIL_FROM` | `oauth-monitor@hostname` | Email sender |
 | `SYSLOG_ENABLED` | `true` | Log to syslog via `logger` |
-| `SYSLOG_TAG` | `oauth-token-monitor` | Syslog tag |
+| `SYSLOG_TAG` | `hostcheck-oauth-token` | Syslog tag |
 | `ALERT_COOLDOWN_SEC` | `3600` | Seconds before repeating same alert |
 | `CHECK_TOKEN_EXISTS` | `true` | Check token file existence |
 | `CHECK_TOKEN_EXPIRY` | `true` | Check access token expiry time |
@@ -197,28 +201,28 @@ CHECK_TOKEN_REFRESH="true"
 | `TOKEN_STALE_CRIT_HOURS` | `24` | Staleness critical threshold (hours) |
 | `SASL_XOAUTH2_CONF` | `/etc/sasl-xoauth2.conf` | Path to sasl-xoauth2 config |
 | `TENANT_ID` | *(empty)* | Microsoft Entra tenant ID (for refresh test) |
-| `STATE_DIR` | `/var/lib/oauth-token-monitor` | State file directory |
-| `LOG_FILE` | `/var/log/oauth-token-monitor.log` | Local log file path |
+| `STATE_DIR` | `/var/lib/hostcheck-oauth-token` | State file directory |
+| `LOG_FILE` | `/var/log/hostcheck-oauth-token.log` | Local log file path |
 
 ---
 
-## Pairing with host-mailcheck
+## Pairing with hostcheck-mail
 
-This script complements host-mailcheck:
+This script complements hostcheck-mail:
 
 | Script | What it catches | When |
 |---|---|---|
-| `host-mailcheck.sh` | SASL auth failure **after** it happens | reactive (5 min) |
-| `oauth-token-monitor.sh` | Token expiry **before** it fails | proactive (30 min) |
+| `hostcheck-mail.sh` | SASL auth failure **after** it happens | reactive (5 min) |
+| `hostcheck-oauth-token.sh` | Token expiry **before** it fails | proactive (30 min) |
 
 Together they give you both early warning and failure detection.
 
 | Script | Focus | Cron | State |
 |---|---|---|---|
-| `host-healthcheck.sh` | Hardware / services | 5 min | `/var/lib/host-healthcheck/` |
-| `host-seccheck.sh` | Security / auth / drift | 15 min | `/var/lib/host-seccheck/` |
-| `host-mailcheck.sh` | Postfix / relay health | 5 min | `/var/lib/host-mailcheck/` |
-| `oauth-token-monitor.sh` | OAuth token expiry | 30 min | `/var/lib/oauth-token-monitor/` |
+| `hostcheck-health.sh` | Hardware / services | 5 min | `/var/lib/hostcheck-health/` |
+| `hostcheck-sec.sh` | Security / auth / drift | 15 min | `/var/lib/hostcheck-sec/` |
+| `hostcheck-mail.sh` | Postfix / relay health | 5 min | `/var/lib/hostcheck-mail/` |
+| `hostcheck-oauth-token.sh` | OAuth token expiry | 30 min | `/var/lib/hostcheck-oauth-token/` |
 
 ---
 
@@ -303,11 +307,11 @@ This usually means no mail has been sent recently (weekends, quiet periods). sas
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/oauth-token-monitor.sh
-rm -f /etc/cron.d/oauth-token-monitor
-rm -rf /etc/oauth-token-monitor
-rm -rf /var/lib/oauth-token-monitor
-rm -f /var/log/oauth-token-monitor.log
+rm -f /usr/local/bin/hostcheck-oauth-token.sh
+rm -f /etc/cron.d/hostcheck-oauth-token
+rm -f /etc/hostcheck/hostcheck-oauth-token.conf
+rm -rf /var/lib/hostcheck-oauth-token
+rm -f /var/log/hostcheck-oauth-token.log
 ```
 
 ---
@@ -316,11 +320,11 @@ rm -f /var/log/oauth-token-monitor.log
 
 | Action | Command |
 |---|---|
-| Run manually | `sudo oauth-token-monitor.sh` |
-| Dry run | `sudo oauth-token-monitor.sh --dry-run` |
-| Force refresh test | `sudo oauth-token-monitor.sh --check-refresh` |
-| Custom config | `sudo oauth-token-monitor.sh --config /path/to/conf` |
-| Edit config | `vi /etc/oauth-token-monitor/oauth-token-monitor.conf` |
-| View log | `tail -f /var/log/oauth-token-monitor.log` |
-| Check cron | `cat /etc/cron.d/oauth-token-monitor` |
-| Clear cooldowns | `rm /var/lib/oauth-token-monitor/cooldown_*` |
+| Run manually | `sudo hostcheck-oauth-token.sh` |
+| Dry run | `sudo hostcheck-oauth-token.sh --dry-run` |
+| Force refresh test | `sudo hostcheck-oauth-token.sh --check-refresh` |
+| Custom config | `sudo hostcheck-oauth-token.sh --config /path/to/conf` |
+| Edit config | `vi /etc/hostcheck/hostcheck-oauth-token.conf` |
+| View log | `tail -f /var/log/hostcheck-oauth-token.log` |
+| Check cron | `cat /etc/cron.d/hostcheck-oauth-token` |
+| Clear cooldowns | `rm /var/lib/hostcheck-oauth-token/cooldown_*` |

@@ -27,21 +27,21 @@ No infrastructure dependencies. No Prometheus. No Docker. Just one script, one c
 ## File layout
 
 ```
-host-healthcheck/
-├── host-healthcheck.sh          # Main health-check script
-├── host-healthcheck.conf        # Configuration file (thresholds, notifications)
-├── install-healthcheck.sh       # Installer (copies files, sets up cron)
+hostcheck-health/
+├── hostcheck-health.sh          # Main health-check script
+├── hostcheck-health.conf        # Configuration file (thresholds, notifications)
+├── install-health.sh            # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/host-healthcheck.sh          # Executable
-/etc/host-healthcheck/host-healthcheck.conf # Config (chmod 600)
-/etc/cron.d/host-healthcheck                # Cron job (every 5 min)
-/var/lib/host-healthcheck/                  # State files (cooldowns, deltas)
-/var/log/host-healthcheck.log               # Local log
+/usr/local/bin/hostcheck-health.sh          # Executable
+/etc/hostcheck/hostcheck-health.conf        # Config (chmod 600)
+/etc/cron.d/hostcheck-health                # Cron job (every 5 min)
+/var/lib/hostcheck-health/                  # State files (cooldowns, deltas)
+/var/log/hostcheck-health.log               # Local log
 ```
 
 ---
@@ -52,19 +52,19 @@ After installation:
 
 ```bash
 # Copy files to the node
-scp -r host-healthcheck/ root@<node>:/tmp/
+scp -r hostcheck-health/ root@<node>:/tmp/
 
 # SSH in and run the installer
 ssh root@<node>
-cd /tmp/host-healthcheck
-chmod +x install-healthcheck.sh
-./install-healthcheck.sh
+cd /tmp/hostcheck-health
+chmod +x install-health.sh
+./install-health.sh
 ```
 
 ### Configure
 
 ```bash
-vi /etc/host-healthcheck/host-healthcheck.conf
+vi /etc/hostcheck/hostcheck-health.conf
 ```
 
 At minimum, set:
@@ -79,13 +79,13 @@ TELEGRAM_CHAT_ID="987654321"
 
 ```bash
 # Dry run (no notifications sent)
-host-healthcheck.sh --dry-run
+hostcheck-health.sh --dry-run
 
 # Live run
-host-healthcheck.sh
+hostcheck-health.sh
 
 # Watch the log
-tail -f /var/log/host-healthcheck.log
+tail -f /var/log/hostcheck-health.log
 ```
 
 ---
@@ -181,8 +181,8 @@ In a 3-node cluster:
 | `PEER_HOSTS` | *(empty)* | Space-separated peer list (empty = auto-detect) |
 | `PEER_PING_COUNT` | `3` | Number of ping attempts per peer |
 | `PEER_PING_TIMEOUT` | `5` | Ping timeout in seconds |
-| `STATE_DIR` | `/var/lib/host-healthcheck` | State file directory |
-| `LOG_FILE` | `/var/log/host-healthcheck.log` | Local log file path |
+| `STATE_DIR` | `/var/lib/hostcheck-health` | State file directory |
+| `LOG_FILE` | `/var/log/hostcheck-health.log` | Local log file path |
 | `NIC_EXCLUDE` | `lo\|veth.*\|fwbr.*\|...` | Regex for interfaces to skip |
 
 ---
@@ -323,8 +323,8 @@ Time: 2026-05-30 14:35:02
 
 ### No alerts are being sent
 
-- Run manually: `sudo host-healthcheck.sh`
-- Check the log: `tail -50 /var/log/host-healthcheck.log`
+- Run manually: `sudo hostcheck-health.sh`
+- Check the log: `tail -50 /var/log/hostcheck-health.log`
 - Look for `COOLDOWN` entries — the alert may have already been sent within the cooldown window
 - Verify Telegram credentials: `curl "https://api.telegram.org/bot<TOKEN>/getMe"`
 - Verify curl is installed: `which curl`
@@ -367,11 +367,11 @@ Time: 2026-05-30 14:35:02
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/host-healthcheck.sh
-rm -f /etc/cron.d/host-healthcheck
-rm -rf /etc/host-healthcheck
-rm -rf /var/lib/host-healthcheck
-rm -f /var/log/host-healthcheck.log
+sudo rm -f /usr/local/bin/hostcheck-health.sh
+sudo rm -f /etc/cron.d/hostcheck-health
+sudo rm -f /etc/hostcheck/hostcheck-health.conf
+sudo rm -rf /var/lib/hostcheck-health
+sudo rm -f /var/log/hostcheck-health.log
 ```
 
 ---
@@ -380,10 +380,10 @@ rm -f /var/log/host-healthcheck.log
 
 | Action | Command |
 |---|---|
-| Run manually | `sudo host-healthcheck.sh` |
-| Dry run | `sudo host-healthcheck.sh --dry-run` |
-| Custom config | `sudo host-healthcheck.sh --config /path/to/conf` |
-| Edit config | `vi /etc/host-healthcheck/host-healthcheck.conf` |
-| View log | `tail -f /var/log/host-healthcheck.log` |
-| Check cron | `cat /etc/cron.d/host-healthcheck` |
-| Clear cooldowns | `rm /var/lib/host-healthcheck/*` |
+| Run manually | `sudo hostcheck-health.sh` |
+| Dry run | `sudo hostcheck-health.sh --dry-run` |
+| Custom config | `sudo hostcheck-health.sh --config /path/to/conf` |
+| Edit config | `vi /etc/hostcheck/hostcheck-health.conf` |
+| View log | `tail -f /var/log/hostcheck-health.log` |
+| Check cron | `cat /etc/cron.d/hostcheck-health` |
+| Clear cooldowns | `rm /var/lib/hostcheck-health/*` |

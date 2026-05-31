@@ -2,7 +2,7 @@
 
 A standalone Bash script that runs on each host via cron, checks for security issues, and fires alerts via Telegram and/or email when problems are found.
 
-Same format, same structure, same notification pipeline as the host-healthcheck script — but focused entirely on security.
+Same format, same structure, same notification pipeline as the hostcheck-health script — but focused entirely on security.
 
 No infrastructure dependencies. No agents. Just one script, one config file, and cron.
 
@@ -29,21 +29,21 @@ No infrastructure dependencies. No agents. Just one script, one config file, and
 ## File layout
 
 ```
-host-seccheck/
-├── host-seccheck.sh             # Main security check script
-├── host-seccheck.conf           # Configuration file
-├── install-seccheck.sh          # Installer (copies files, sets up cron)
+hostcheck-sec/
+├── hostcheck-sec.sh             # Main security check script
+├── hostcheck-sec.conf           # Configuration file
+├── install-sec.sh          # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/host-seccheck.sh             # Executable
-/etc/host-seccheck/host-seccheck.conf       # Config (chmod 600)
-/etc/cron.d/host-seccheck                   # Cron job (every 15 min)
-/var/lib/host-seccheck/                     # State files (baselines, offsets, cooldowns)
-/var/log/host-seccheck.log                  # Local log
+/usr/local/bin/hostcheck-sec.sh             # Executable
+/etc/hostcheck/hostcheck-sec.conf       # Config (chmod 600)
+/etc/cron.d/hostcheck-sec                   # Cron job (every 15 min)
+/var/lib/hostcheck-sec/                     # State files (baselines, offsets, cooldowns)
+/var/log/hostcheck-sec.log                  # Local log
 ```
 
 ---
@@ -54,19 +54,19 @@ After installation:
 
 ```bash
 # Copy files to the node
-scp -r host-seccheck/ root@<node>:/tmp/
+scp -r hostcheck-sec/ root@<node>:/tmp/
 
 # SSH in and run the installer
 ssh root@<node>
-cd /tmp/host-seccheck
-chmod +x install-seccheck.sh
-./install-seccheck.sh
+cd /tmp/hostcheck-sec
+chmod +x install-sec.sh
+./install-sec.sh
 ```
 
 ### Configure
 
 ```bash
-vi /etc/host-seccheck/host-seccheck.conf
+vi /etc/hostcheck/hostcheck-sec.conf
 ```
 
 At minimum, set:
@@ -81,13 +81,13 @@ TELEGRAM_CHAT_ID="987654321"
 
 ```bash
 # Dry run (no notifications sent)
-host-seccheck.sh --dry-run
+hostcheck-sec.sh --dry-run
 
 # Live run
-host-seccheck.sh
+hostcheck-sec.sh
 
 # Watch the log
-tail -f /var/log/host-seccheck.log
+tail -f /var/log/hostcheck-sec.log
 ```
 
 ---
@@ -121,7 +121,7 @@ On subsequent runs, it compares current ports to the baseline and alerts on any 
 After installing a new service or making expected changes:
 
 ```bash
-sudo host-seccheck.sh --reset-baseline
+sudo hostcheck-sec.sh --reset-baseline
 ```
 
 This re-snapshots all baselines:
@@ -188,8 +188,8 @@ If you intentionally allow password auth or root login, set `CHECK_SSH_CONFIG="f
 | `CERT_PATHS` | `/etc/pve/local /etc/ssl/certs` | Certificate paths to scan |
 | `CERT_WARN_DAYS` | `30` | Certificate expiry warning (days) |
 | `CERT_CRIT_DAYS` | `7` | Certificate expiry critical (days) |
-| `STATE_DIR` | `/var/lib/host-seccheck` | State file directory |
-| `LOG_FILE` | `/var/log/host-seccheck.log` | Local log file path |
+| `STATE_DIR` | `/var/lib/hostcheck-sec` | State file directory |
+| `LOG_FILE` | `/var/log/hostcheck-sec.log` | Local log file path |
 
 ---
 
@@ -256,8 +256,8 @@ No config changes needed — it just works.
 
 ### No alerts are being sent
 
-- Run manually: `sudo host-seccheck.sh`
-- Check the log: `tail -50 /var/log/host-seccheck.log`
+- Run manually: `sudo hostcheck-sec.sh`
+- Check the log: `tail -50 /var/log/hostcheck-sec.log`
 - Look for `COOLDOWN` entries — the alert may be within cooldown
 - Verify Telegram credentials: `curl "https://api.telegram.org/bot<TOKEN>/getMe"`
 
@@ -266,7 +266,7 @@ No config changes needed — it just works.
 After installing a new service:
 
 ```bash
-sudo host-seccheck.sh --reset-baseline
+sudo hostcheck-sec.sh --reset-baseline
 ```
 
 ### False positives on authorized_keys
@@ -274,7 +274,7 @@ sudo host-seccheck.sh --reset-baseline
 After intentionally adding SSH keys:
 
 ```bash
-sudo host-seccheck.sh --reset-baseline
+sudo hostcheck-sec.sh --reset-baseline
 ```
 
 ### Auth log checks show nothing
@@ -293,14 +293,14 @@ CHECK_SSH_CONFIG="false"
 
 ---
 
-## Pairing with host-healthcheck
+## Pairing with hostcheck-health
 
 These two scripts are designed to work side-by-side:
 
 | Script | Focus | Cron | State dir |
 |---|---|---|---|
-| `host-healthcheck.sh` | Hardware/service health | every 5 min | `/var/lib/host-healthcheck/` |
-| `host-seccheck.sh` | Security/auth/drift | every 15 min | `/var/lib/host-seccheck/` |
+| `hostcheck-health.sh` | Hardware/service health | every 5 min | `/var/lib/hostcheck-health/` |
+| `hostcheck-sec.sh` | Security/auth/drift | every 15 min | `/var/lib/hostcheck-sec/` |
 
 They share the same notification config format, so you can copy your Telegram credentials between them.
 
@@ -320,11 +320,11 @@ They share the same notification config format, so you can copy your Telegram cr
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/host-seccheck.sh
-rm -f /etc/cron.d/host-seccheck
-rm -rf /etc/host-seccheck
-rm -rf /var/lib/host-seccheck
-rm -f /var/log/host-seccheck.log
+rm -f /usr/local/bin/hostcheck-sec.sh
+rm -f /etc/cron.d/hostcheck-sec
+rm -f /etc/hostcheck/hostcheck-sec.conf
+rm -rf /var/lib/hostcheck-sec
+rm -f /var/log/hostcheck-sec.log
 ```
 
 ---
@@ -333,11 +333,11 @@ rm -f /var/log/host-seccheck.log
 
 | Action | Command |
 |---|---|
-| Run manually | `sudo host-seccheck.sh` |
-| Dry run | `sudo host-seccheck.sh --dry-run` |
-| Custom config | `sudo host-seccheck.sh --config /path/to/conf` |
-| Reset baselines | `sudo host-seccheck.sh --reset-baseline` |
-| Edit config | `vi /etc/host-seccheck/host-seccheck.conf` |
-| View log | `tail -f /var/log/host-seccheck.log` |
-| Check cron | `cat /etc/cron.d/host-seccheck` |
-| Clear cooldowns | `rm /var/lib/host-seccheck/cooldown_*` |
+| Run manually | `sudo hostcheck-sec.sh` |
+| Dry run | `sudo hostcheck-sec.sh --dry-run` |
+| Custom config | `sudo hostcheck-sec.sh --config /path/to/conf` |
+| Reset baselines | `sudo hostcheck-sec.sh --reset-baseline` |
+| Edit config | `vi /etc/hostcheck/hostcheck-sec.conf` |
+| View log | `tail -f /var/log/hostcheck-sec.log` |
+| Check cron | `cat /etc/cron.d/hostcheck-sec` |
+| Clear cooldowns | `rm /var/lib/hostcheck-sec/cooldown_*` |
