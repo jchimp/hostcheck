@@ -3,11 +3,7 @@
 # install-mail.sh
 #
 # Installs the host-mailcheck script, config, and cron job.
-# Idempotent — safe to re-run.
 #
-# Usage:
-#   chmod +x install-mail.sh
-#   sudo ./install-mail.sh
 ###############################################################################
 
 set -Eeuo pipefail

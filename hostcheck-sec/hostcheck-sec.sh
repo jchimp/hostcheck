@@ -26,6 +26,9 @@
 
 set -Euo pipefail
 
+# ── Ensure sbin paths are available (cron uses minimal PATH) ────────────────
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+
 # ── Defaults (overridden by config file) ─────────────────────────────────────
 CONF_FILE="/etc/hostcheck/hostcheck-sec.conf"
 DRY_RUN=0

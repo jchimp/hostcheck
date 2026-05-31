@@ -3,11 +3,7 @@
 # install-sec.sh
 #
 # Installs the host-seccheck script, config, and cron job.
-# Idempotent — safe to re-run.
 #
-# Usage:
-#   chmod +x install-sec.sh
-#   sudo ./install-sec.sh
 ###############################################################################
 
 set -Eeuo pipefail

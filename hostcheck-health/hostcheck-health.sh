@@ -22,6 +22,9 @@
 
 set -Euo pipefail
 
+# ── Ensure sbin paths are available (cron uses minimal PATH) ────────────────
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+
 # ── Defaults (overridden by config file) ─────────────────────────────────────
 CONF_FILE="/etc/hostcheck/hostcheck-health.conf"
 DRY_RUN=0
@@ -32,7 +35,7 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="health@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="hostcheck-health@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
 SYSLOG_TAG="hostcheck-health"

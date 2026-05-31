@@ -3,11 +3,7 @@
 # install-oauth-token.sh
 #
 # Installs the oauth-token-monitor script, config, and cron job.
-# Idempotent — safe to re-run.
 #
-# Usage:
-#   chmod +x install-oauth-token.sh
-#   sudo ./install-oauth-token.sh
 ###############################################################################
 
 set -Eeuo pipefail

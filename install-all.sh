@@ -4,11 +4,7 @@
 #
 # Master installer for the hostcheck suite.
 # Installs all four monitoring scripts: health, security, mail, and OAuth token.
-# Idempotent — safe to re-run.
 #
-# Usage:
-#   chmod +x install-all.sh
-#   sudo ./install-all.sh
 ###############################################################################
 
 set -Eeuo pipefail
