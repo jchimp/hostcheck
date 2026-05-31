@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# host-mailcheck.sh
+# hostcheck-mail.sh
 #
 # Standalone Postfix / mail relay health check script.
 # Runs via cron on each mail relay host. Checks service health, queue state,
@@ -18,16 +18,16 @@
 #   - Telegram + email + syslog notifications
 #
 # Usage:
-#   /usr/local/bin/host-mailcheck.sh
-#   /usr/local/bin/host-mailcheck.sh --config /path/to/config
-#   /usr/local/bin/host-mailcheck.sh --dry-run
-#   /usr/local/bin/host-mailcheck.sh --reset-baseline
+#   /usr/local/bin/hostcheck-mail.sh
+#   /usr/local/bin/hostcheck-mail.sh --config /path/to/config
+#   /usr/local/bin/hostcheck-mail.sh --dry-run
+#   /usr/local/bin/hostcheck-mail.sh --reset-baseline
 ###############################################################################
 
 set -Euo pipefail
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/host-mailcheck/host-mailcheck.conf"
+CONF_FILE="/etc/hostcheck/hostcheck-mail.conf"
 DRY_RUN=0
 RESET_BASELINE=0
 
@@ -37,10 +37,10 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="mailcheck@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="mail@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
-SYSLOG_TAG="mailcheck"
+SYSLOG_TAG="hostcheck-mail"
 
 ALERT_COOLDOWN_SEC=3600
 
@@ -76,8 +76,15 @@ SPOOL_CRIT_PCT=95
 
 MAIL_LOG=""
 
-STATE_DIR="/var/lib/host-mailcheck"
-LOG_FILE="/var/log/host-mailcheck.log"
+STATE_DIR="/var/lib/hostcheck-mail"
+LOG_FILE="/var/log/hostcheck-mail.log"
+
+# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
+GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
+if [[ -f "$GENERAL_CONF" ]]; then
+  # shellcheck disable=SC1090
+  source "$GENERAL_CONF"
+fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do

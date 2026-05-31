@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# host-seccheck.sh
+# hostcheck-sec.sh
 #
 # Standalone host security check script for Proxmox / Linux nodes.
 # Runs via cron on each host. Checks for security issues and sends alerts
@@ -18,16 +18,16 @@
 #   - Telegram + email + syslog notifications
 #
 # Usage:
-#   /usr/local/bin/host-seccheck.sh
-#   /usr/local/bin/host-seccheck.sh --config /path/to/config
-#   /usr/local/bin/host-seccheck.sh --dry-run
-#   /usr/local/bin/host-seccheck.sh --reset-baseline
+#   /usr/local/bin/hostcheck-sec.sh
+#   /usr/local/bin/hostcheck-sec.sh --config /path/to/config
+#   /usr/local/bin/hostcheck-sec.sh --dry-run
+#   /usr/local/bin/hostcheck-sec.sh --reset-baseline
 ###############################################################################
 
 set -Euo pipefail
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/host-seccheck/host-seccheck.conf"
+CONF_FILE="/etc/hostcheck/hostcheck-sec.conf"
 DRY_RUN=0
 RESET_BASELINE=0
 
@@ -37,10 +37,10 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="seccheck@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="security@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
-SYSLOG_TAG="seccheck"
+SYSLOG_TAG="hostcheck-sec"
 
 ALERT_COOLDOWN_SEC=3600
 
@@ -66,8 +66,8 @@ CERT_CRIT_DAYS=7
 
 AUTH_LOG=""
 
-STATE_DIR="/var/lib/host-seccheck"
-LOG_FILE="/var/log/host-seccheck.log"
+STATE_DIR="/var/lib/hostcheck-sec"
+LOG_FILE="/var/log/hostcheck-sec.log"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -87,6 +87,13 @@ done
 if [[ -f "$CONF_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONF_FILE"
+fi
+
+# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
+GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
+if [[ -f "$GENERAL_CONF" ]]; then
+  # shellcheck disable=SC1090
+  source "$GENERAL_CONF"
 fi
 
 # ── Setup ────────────────────────────────────────────────────────────────────

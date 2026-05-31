@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 ###############################################################################
-# install-mailcheck.sh
+# install-sec.sh
 #
-# Installs the host-mailcheck script, config, and cron job.
+# Installs the host-seccheck script, config, and cron job.
 # Idempotent — safe to re-run.
 #
 # Usage:
-#   chmod +x install-mailcheck.sh
-#   sudo ./install-mailcheck.sh
+#   chmod +x install-sec.sh
+#   sudo ./install-sec.sh
 ###############################################################################
 
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_BIN="/usr/local/bin/host-mailcheck.sh"
-CONF_DIR="/etc/host-mailcheck"
-CONF_FILE="${CONF_DIR}/host-mailcheck.conf"
-STATE_DIR="/var/lib/host-mailcheck"
-CRON_FILE="/etc/cron.d/host-mailcheck"
+INSTALL_BIN="/usr/local/bin/hostcheck-sec.sh"
+CONF_DIR="/etc/hostcheck"
+CONF_FILE="${CONF_DIR}/hostcheck-sec.conf"
+STATE_DIR="/var/lib/hostcheck"
+CRON_FILE="/etc/cron.d/hostcheck-sec"
 
-echo "==> Installing host-mailcheck"
+echo "==> Installing hostcheck-sec"
 
 # ── Copy script ──────────────────────────────────────────────────────────────
-cp "${SCRIPT_DIR}/host-mailcheck.sh" "$INSTALL_BIN"
+cp "${SCRIPT_DIR}/hostcheck-sec.sh" "$INSTALL_BIN"
 chmod 755 "$INSTALL_BIN"
 echo "    Script installed: $INSTALL_BIN"
 
@@ -31,9 +31,9 @@ mkdir -p "$CONF_DIR"
 if [[ -f "$CONF_FILE" ]]; then
   echo "    Config already exists (not overwritten): $CONF_FILE"
   echo "    New template saved as: ${CONF_FILE}.new"
-  cp "${SCRIPT_DIR}/host-mailcheck.conf" "${CONF_FILE}.new"
+  cp "${SCRIPT_DIR}/hostcheck-sec.conf" "${CONF_FILE}.new"
 else
-  cp "${SCRIPT_DIR}/host-mailcheck.conf" "$CONF_FILE"
+  cp "${SCRIPT_DIR}/hostcheck-sec.conf" "$CONF_FILE"
   chmod 600 "$CONF_FILE"
   echo "    Config installed: $CONF_FILE"
 fi
@@ -44,15 +44,15 @@ echo "    State directory: $STATE_DIR"
 
 # ── Install cron job ─────────────────────────────────────────────────────────
 cat > "$CRON_FILE" <<EOF
-# Host mail check — every 5 minutes
-*/5 * * * * root ${INSTALL_BIN} >> /dev/null 2>&1
+# Host security check — every 15 minutes
+*/15 * * * * root ${INSTALL_BIN} >> /dev/null 2>&1
 EOF
 
 chmod 644 "$CRON_FILE"
-echo "    Cron job installed: $CRON_FILE (every 5 min)"
+echo "    Cron job installed: $CRON_FILE (every 15 min)"
 
 # ── Run once ─────────────────────────────────────────────────────────────────
-echo "    Running mail check once (dry-run)..."
+echo "    Running security check once (dry-run)..."
 "$INSTALL_BIN" --dry-run || echo "    WARN: dry-run returned non-zero"
 
 # ── Set initial baselines ────────────────────────────────────────────────────
@@ -63,9 +63,9 @@ echo ""
 echo "==> Installation complete"
 echo ""
 echo "Next steps:"
-echo "  1. Edit config:     vi $CONF_FILE"
-echo "  2. Set RELAY_HOSTS: RELAY_HOSTS=\"smtp.gmail.com:587 smtp.office365.com:587\""
-echo "  3. Set Telegram:    TELEGRAM_ENABLED, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID"
-echo "  4. Set email:       EMAIL_ENABLED, EMAIL_TO"
-echo "  5. Test:            $INSTALL_BIN --dry-run"
-echo "  6. Monitor log:     tail -f /var/log/host-mailcheck.log"
+echo "  1. Edit config:   vi $CONF_FILE"
+echo "  2. Set Telegram:  TELEGRAM_ENABLED, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID"
+echo "  3. Set email:     EMAIL_ENABLED, EMAIL_TO"
+echo "  4. Test:          $INSTALL_BIN --dry-run"
+echo "  5. Monitor log:   tail -f /var/log/hostcheck-sec.log"
+echo "  6. Reset baselines after expected changes: $INSTALL_BIN --reset-baseline"

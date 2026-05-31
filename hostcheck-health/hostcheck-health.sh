@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# host-healthcheck.sh
+# hostcheck-health.sh
 #
 # Standalone host health-check script for Proxmox / Ceph nodes.
 # Runs via cron on each host. Checks system health and sends alerts via
@@ -15,15 +15,15 @@
 #   - Telegram + email notifications
 #
 # Usage:
-#   /usr/local/bin/host-healthcheck.sh
-#   /usr/local/bin/host-healthcheck.sh --config /path/to/config
-#   /usr/local/bin/host-healthcheck.sh --dry-run
+#   /usr/local/bin/hostcheck-health.sh
+#   /usr/local/bin/hostcheck-health.sh --config /path/to/config
+#   /usr/local/bin/hostcheck-health.sh --dry-run
 ###############################################################################
 
 set -Euo pipefail
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/host-healthcheck/host-healthcheck.conf"
+CONF_FILE="/etc/hostcheck/hostcheck-health.conf"
 DRY_RUN=0
 
 TELEGRAM_ENABLED="false"
@@ -32,10 +32,10 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="healthcheck@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="health@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
-SYSLOG_TAG="healthcheck"
+SYSLOG_TAG="hostcheck-health"
 
 ALERT_COOLDOWN_SEC=3600
 
@@ -63,10 +63,17 @@ PEER_HOSTS=""
 PEER_PING_COUNT=3
 PEER_PING_TIMEOUT=5
 
-STATE_DIR="/var/lib/host-healthcheck"
-LOG_FILE="/var/log/host-healthcheck.log"
+STATE_DIR="/var/lib/hostcheck-health"
+LOG_FILE="/var/log/hostcheck-health.log"
 
 NIC_EXCLUDE="lo|veth.*|fwbr.*|fwpr.*|fwln.*|tap.*|docker.*"
+
+# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
+GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
+if [[ -f "$GENERAL_CONF" ]]; then
+  # shellcheck disable=SC1090
+  source "$GENERAL_CONF"
+fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do

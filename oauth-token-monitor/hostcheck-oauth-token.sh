@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# oauth-token-monitor.sh
+# hostcheck-oauth-token.sh
 #
 # Proactive OAuth2 token expiry monitor for sasl-xoauth2 Postfix relays.
 # Checks token file existence, access token expiry, token file freshness,
@@ -13,16 +13,16 @@
 #   https://std.rocks/relay-ms365-oauth-debian-13.html
 #
 # Usage:
-#   /usr/local/bin/oauth-token-monitor.sh
-#   /usr/local/bin/oauth-token-monitor.sh --config /path/to/config
-#   /usr/local/bin/oauth-token-monitor.sh --dry-run
-#   /usr/local/bin/oauth-token-monitor.sh --check-refresh
+#   /usr/local/bin/hostcheck-oauth-token.sh
+#   /usr/local/bin/hostcheck-oauth-token.sh --config /path/to/config
+#   /usr/local/bin/hostcheck-oauth-token.sh --dry-run
+#   /usr/local/bin/hostcheck-oauth-token.sh --check-refresh
 ###############################################################################
 
 set -Euo pipefail
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/oauth-token-monitor/oauth-token-monitor.conf"
+CONF_FILE="/etc/hostcheck/hostcheck-oauth-token.conf"
 DRY_RUN=0
 FORCE_REFRESH_CHECK=0
 
@@ -32,10 +32,10 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="oauth-monitor@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="oauth@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
-SYSLOG_TAG="oauth-token-monitor"
+SYSLOG_TAG="hostcheck-oauth-token"
 
 ALERT_COOLDOWN_SEC=3600
 
@@ -55,8 +55,8 @@ TOKEN_STALE_CRIT_HOURS=24
 SASL_XOAUTH2_CONF="/etc/sasl-xoauth2.conf"
 TENANT_ID=""
 
-STATE_DIR="/var/lib/oauth-token-monitor"
-LOG_FILE="/var/log/oauth-token-monitor.log"
+STATE_DIR="/var/lib/hostcheck-oauth-token"
+LOG_FILE="/var/log/hostcheck-oauth-token.log"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -81,6 +81,13 @@ fi
 # Override refresh check if forced via CLI
 if [[ "$FORCE_REFRESH_CHECK" -eq 1 ]]; then
   CHECK_TOKEN_REFRESH="true"
+fi
+
+# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
+GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
+if [[ -f "$GENERAL_CONF" ]]; then
+  # shellcheck disable=SC1090
+  source "$GENERAL_CONF"
 fi
 
 # ── Setup ────────────────────────────────────────────────────────────────────
