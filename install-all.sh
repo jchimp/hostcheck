@@ -31,6 +31,7 @@ install_module() {
   
   echo ""
   echo "→ Installing $module_name..."
+  echo ""
   if bash "$installer_path"; then
     INSTALL_COUNT=$(( INSTALL_COUNT + 1 ))
     return 0
@@ -90,8 +91,8 @@ fi
 echo ""
 echo "=========================================="
 if [[ "$INSTALL_FAILED" -eq 0 ]]; then
-  echo "  ✅ Installation Complete!"
-  echo "  Installed: $INSTALL_COUNT modules"
+  echo "✅ Installation Complete!"
+  echo "Installed: $INSTALL_COUNT modules"
   echo ""
   echo "Next steps:"
   echo "  1. Review general settings:     vi /etc/hostcheck/hostcheck.conf"
@@ -109,7 +110,7 @@ if [[ "$INSTALL_FAILED" -eq 0 ]]; then
   echo "  - hostcheck-mail/README.md"
   echo "  - hostcheck-oauth-token/README.md"
 else
-  echo "  ⚠️  Installation completed with errors"
+  echo "⚠️  Installation completed with errors"
   echo "  Installed: $INSTALL_COUNT modules"
   echo "  Failed: $INSTALL_FAILED modules"
   echo ""
