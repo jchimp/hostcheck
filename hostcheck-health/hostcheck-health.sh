@@ -457,7 +457,13 @@ check_peers() {
     #          1          1 pve01
     #          2          1 pve02
     #          3          1 pve03
-    mapfile -t peers < <(pvecm nodes 2>/dev/null | awk 'NR>1 && NF>=3 {print $NF}' | sort)
+
+    # use column 3, skip headers and separators
+    mapfile -t peers < <(pvecm nodes 2>/dev/null | awk '
+      /Nodeid|Votes|Name|Membership|^-+$|^$/ { next }
+      NF >= 3 { print $3 }
+    ' | sort)
+
     log "Peer list source: pvecm nodes (${#peers[@]} entries)"
   else
     log "pvecm not found and PEER_HOSTS not set — skipping peer check"
