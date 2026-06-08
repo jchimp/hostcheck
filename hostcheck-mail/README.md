@@ -30,64 +30,17 @@ No infrastructure dependencies. No agents. Just one script, one config file, and
 ```
 hostcheck-mail/
 ├── hostcheck-mail.sh            # Main mail check script
-├── hostcheck-mail.conf          # Configuration file
-├── install-mail.sh              # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/hostcheck-mail.sh            # Executable
-/etc/hostcheck/hostcheck-mail.conf          # Config (chmod 600)
-/etc/cron.d/hostcheck-mail                  # Cron job (every 5 min)
-/var/lib/hostcheck-mail/                    # State files (offsets, baselines, cooldowns)
-/var/log/hostcheck-mail.log                 # Local log
-```
-
----
-
-## Installation
-
-### On each mail relay host
-
-```bash
-# Copy files to the host
-scp -r hostcheck-mail/ root@<host>:/tmp/
-
-# SSH in and run the installer
-ssh root@<host>
-cd /tmp/hostcheck-mail
-chmod +x install-mail.sh
-./install-mail.sh
-```
-
-### Configure
-
-```bash
-vi /etc/hostcheck/hostcheck-mail.conf
-```
-
-At minimum, set:
-
-```conf
-RELAY_HOSTS="smtp.gmail.com:587 smtp.office365.com:587"
-TELEGRAM_ENABLED="true"
-TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-TELEGRAM_CHAT_ID="987654321"
-```
-
-### Test
-
-```bash
-# Dry run (no notifications sent)
-hostcheck-mail.sh --dry-run
-
-# Live run
-hostcheck-mail.sh
-
-# Watch the log
-tail -f /var/log/hostcheck-mail.log
+/usr/local/bin/hostcheck-mail.sh                # Executable
+/etc/hostcheck/hostcheck.conf                   # Central config (shared with all modules)
+/etc/cron.d/hostcheck-mail                      # Cron job (every 5 min) — managed by: hostcheck enable/disable mail
+/var/lib/hostcheck/mail/                        # State files (offsets, baselines, cooldowns)
+/var/log/hostcheck/hostcheck-mail.log           # Module log
 ```
 
 ---
@@ -179,6 +132,9 @@ Example: if the queue was 5 and is now 30, that's a growth of 25 → alert fires
 
 ## Configuration reference
 
+Configuration lives in `/etc/hostcheck/hostcheck.conf`, shared across all modules.
+Edit it with: `sudo vi /etc/hostcheck/hostcheck.conf`
+
 | Key | Default | Description |
 |---|---|---|
 | `TELEGRAM_ENABLED` | `false` | Enable Telegram notifications |
@@ -224,9 +180,9 @@ All three scripts are designed to work side-by-side:
 
 | Script | Focus | Cron | Log | State |
 |---|---|---|---|---|
-| `hostcheck-health.sh` | Hardware / services | every 5 min | `/var/log/hostcheck-health.log` | `/var/lib/hostcheck-health/` |
-| `hostcheck-sec.sh` | Security / auth / drift | every 15 min | `/var/log/hostcheck-sec.log` | `/var/lib/hostcheck-sec/` |
-| `hostcheck-mail.sh` | Postfix / relay health | every 5 min | `/var/log/hostcheck-mail.log` | `/var/lib/hostcheck-mail/` |
+| `hostcheck-health.sh` | Hardware / services | every 5 min | `/var/log/hostcheck/hostcheck-health.log` | `/var/lib/hostcheck/health/` |
+| `hostcheck-sec.sh` | Security / auth / drift | every 15 min | `/var/log/hostcheck/hostcheck-sec.log` | `/var/lib/hostcheck/sec/` |
+| `hostcheck-mail.sh` | Postfix / relay health | every 5 min | `/var/log/hostcheck/hostcheck-mail.log` | `/var/lib/hostcheck/mail/` |
 
 They share the same notification config format, so you can copy your Telegram credentials between them.
 
@@ -334,11 +290,10 @@ This usually means relay delivery is failing. Check:
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/hostcheck-mail.sh
-rm -f /etc/cron.d/hostcheck-mail
-rm -f /etc/hostcheck/hostcheck-mail.conf
-rm -rf /var/lib/hostcheck-mail
-rm -f /var/log/hostcheck-mail.log
+sudo hostcheck disable mail
+sudo rm -f /usr/local/bin/hostcheck-mail.sh
+sudo rm -rf /var/lib/hostcheck/mail
+sudo rm -f /var/log/hostcheck/hostcheck-mail.log
 ```
 
 ---
@@ -351,7 +306,7 @@ rm -f /var/log/hostcheck-mail.log
 | Dry run | `sudo hostcheck-mail.sh --dry-run` |
 | Custom config | `sudo hostcheck-mail.sh --config /path/to/conf` |
 | Reset baselines | `sudo hostcheck-mail.sh --reset-baseline` |
-| Edit config | `vi /etc/hostcheck/hostcheck-mail.conf` |
+| Edit config | `sudo vi /etc/hostcheck/hostcheck.conf` |
 | View log | `tail -f /var/log/hostcheck-mail.log` |
 | Check cron | `cat /etc/cron.d/hostcheck-mail` |
-| Clear cooldowns | `rm /var/lib/hostcheck-mail/cooldown_*` |
+| Clear cooldowns | `rm /var/lib/hostcheck/mail/cooldown_*` |

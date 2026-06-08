@@ -1,3 +1,16 @@
+<<<<<<< HEAD
 docs/private/
 NOTES.md
 *.local.md
+=======
+#== Notes
+docs/private/
+NOTES.md
+*.local.md
+
+#== Temp
+*.old*
+*.tmp*
+*.bak*
+*.orig*
+>>>>>>> 141514594301061184c0f6b126cbce998a61b4ce
