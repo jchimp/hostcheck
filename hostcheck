@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+###############################################################################
+# hostcheck
+#
+# Master dispatcher for the hostcheck suite.
+# Installed at: /usr/local/bin/hostcheck
+#
+# Usage:
+#   hostcheck <module> [args...]     Run a module (health, sec, mail, oauth-token)
+#   hostcheck cron                   Show all installed cron jobs
+#   hostcheck log [module]           Tail module log(s)
+#   hostcheck status                 Show enabled modules and notification config
+#   hostcheck help                   Show this help
+###############################################################################
+
+set -Euo pipefail
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+
+SCRIPT_DIR="/usr/local/bin/hostcheck"
+CONF_FILE="/etc/hostcheck/hostcheck.conf"
+LOG_DIR="/var/log/hostcheck"
+CRON_PATTERN="/etc/cron.d/hostcheck-*"
+
+MODULES=(health sec mail oauth-token)
+
+usage() {
+  cat <<EOF
+Usage: hostcheck <command> [options]
+
+Commands:
+  health [args]       Run the system health module
+  sec [args]          Run the security module
+  mail [args]         Run the mail relay module
+  oauth-token [args]  Run the OAuth token module
+  cron                List installed hostcheck cron jobs
+  log [module]        Tail log(s) — omit module to tail all
+  status              Show enabled modules and notification config
+  help                Show this help
+
+Module args (passed through to the underlying script):
+  --dry-run           Run without sending alerts or updating state
+  --reset-baseline    Reset stored baselines (health, sec, mail)
+  --check-refresh     Force OAuth token refresh test (oauth-token only)
+  --config <path>     Override config file path
+
+Examples:
+  hostcheck health --dry-run
+  hostcheck sec --reset-baseline
+  hostcheck log health
+  hostcheck status
+EOF
+}
+
+run_module() {
+  local module="$1"; shift
+  local script="${SCRIPT_DIR}/hostcheck-${module}.sh"
+  if [[ ! -x "$script" ]]; then
+    echo "ERROR: Module script not found or not executable: ${script}" >&2
+    echo "       Run install.sh to install the ${module} module." >&2
+    exit 1
+  fi
+  exec "$script" "$@"
+}
+
+cmd_cron() {
+  local found=0
+  for f in $CRON_PATTERN; do
+    [[ -f "$f" ]] || continue
+    echo "── $f ──"
+    cat "$f"
+    echo
+    found=1
+  done
+  if [[ "$found" -eq 0 ]]; then
+    echo "No hostcheck cron jobs found (expected: ${CRON_PATTERN})"
+  fi
+}
+
+cmd_log() {
+  local module="${1:-}"
+  if [[ -n "$module" ]]; then
+    local logfile="${LOG_DIR}/hostcheck-${module}.log"
+    if [[ ! -f "$logfile" ]]; then
+      echo "Log file not found: ${logfile}" >&2
+      exit 1
+    fi
+    exec tail -f "$logfile"
+  else
+    local logs=()
+    for m in "${MODULES[@]}"; do
+      local lf="${LOG_DIR}/hostcheck-${m}.log"
+      [[ -f "$lf" ]] && logs+=("$lf")
+    done
+    if [[ "${#logs[@]}" -eq 0 ]]; then
+      echo "No log files found in ${LOG_DIR}" >&2
+      exit 1
+    fi
+    exec tail -f "${logs[@]}"
+  fi
+}
+
+cmd_status() {
+  echo "══ hostcheck status ══════════════════════════════════"
+  echo ""
+
+  if [[ ! -f "$CONF_FILE" ]]; then
+    echo "  Config not found: ${CONF_FILE}"
+    echo "  Run install.sh to set up hostcheck."
+    exit 0
+  fi
+
+  # Source config to read values
+  # shellcheck disable=SC1090
+  source "$CONF_FILE"
+
+  echo "  Config: ${CONF_FILE}"
+  echo ""
+  echo "  Modules:"
+  for m in "${MODULES[@]}"; do
+    local var="MODULE_${m//-/_}_ENABLED"
+    var="${var^^}"
+    local enabled="${!var:-false}"
+    local script="${SCRIPT_DIR}/hostcheck-${m}.sh"
+    local cron="/etc/cron.d/hostcheck-${m}"
+    local installed=""
+    [[ -x "$script" ]] && installed+=" script" || installed+=" [no script]"
+    [[ -f "$cron" ]]   && installed+=" cron"   || installed+=" [no cron]"
+    printf "    %-15s  enabled=%-5s  %s\n" "$m" "$enabled" "$installed"
+  done
+
+  echo ""
+  echo "  Notifications:"
+  printf "    Telegram: %s\n" "${TELEGRAM_ENABLED:-false}"
+  if [[ "${TELEGRAM_ENABLED:-false}" == "true" ]]; then
+    local tok="${TELEGRAM_BOT_TOKEN:-}"
+    printf "    Bot token: %s\n" "${tok:0:12}..."
+    printf "    Chat ID:   %s\n" "${TELEGRAM_CHAT_ID:-<not set>}"
+  fi
+  printf "    Email:    %s\n" "${EMAIL_ENABLED:-false}"
+  if [[ "${EMAIL_ENABLED:-false}" == "true" ]]; then
+    printf "    To:       %s\n" "${EMAIL_TO:-<not set>}"
+    printf "    From:     %s\n" "${EMAIL_FROM:-<not set>}"
+  fi
+  printf "    Syslog:   %s\n" "${SYSLOG_ENABLED:-true}"
+  printf "    Cooldown: %ss\n" "${ALERT_COOLDOWN_SEC:-3600}"
+  echo ""
+}
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+case "${1:-}" in
+  health|sec|mail|oauth-token)
+    module="$1"; shift
+    run_module "$module" "$@"
+    ;;
+  cron)
+    cmd_cron
+    ;;
+  log)
+    shift
+    cmd_log "${1:-}"
+    ;;
+  status)
+    cmd_status
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  "")
+    usage
+    exit 1
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
