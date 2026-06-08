@@ -44,12 +44,12 @@ hostcheck status
 
 ## What's included
 
-| Tool | Purpose | Checks | Cron | Alert Types |
-|---|---|---|---|---|
-| **hostcheck-health** | System & cluster health | NIC errors, disk space, SMART, Ceph, Corosync, CPU, memory, load, systemd, filesystems | 5 min | Hardware, service issues |
-| **hostcheck-sec** | Security & drift detection | SSH failures, root SSH, sudo failures, new users, security updates, cert expiry, SSH hardening, authorized_keys, listening ports, world-writable files | 15 min | Break-ins, config drift, updates needed |
-| **hostcheck-mail** | Postfix relay health | Service status, queue size, deferred age, queue growth, relay TCP, SASL/OAuth failures, TLS errors, bounces, fatal errors, spool disk | 5 min | Mail relay failures |
-| **hostcheck-oauth-token** | OAuth2 token expiry (M365) | Token file exists, access token expiry, file staleness, refresh test, config validation, permissions | 30 min | Token about to expire |
+| Tool | Purpose | Checks | Cron |
+|---|---|---|---|
+| **hostcheck-health** | System & cluster health | NIC errors, disk space, SMART, Ceph, Corosync, CPU, memory, load, systemd, filesystems | 5 min |
+| **hostcheck-sec** | Security & drift detection | SSH failures, root SSH, sudo failures, new users, security updates, cert expiry, SSH hardening, authorized_keys, listening ports, world-writable files | 15 min |
+| **hostcheck-mail** | Postfix relay health | Service status, queue size, deferred age, queue growth, relay TCP, SASL/OAuth failures, TLS errors, bounces, fatal errors, spool disk | 5 min |
+| **hostcheck-oauth-token** | OAuth2 token expiry (M365) | Token file exists, access token expiry, file staleness, refresh test, config validation, permissions | 30 min |
 
 ---
 
@@ -58,12 +58,12 @@ hostcheck status
 After running the installer:
 
 ```
-/usr/local/bin/hostcheck                                      # Dispatcher (in $PATH)
-/usr/local/bin/hostcheck-{health,sec,mail,oauth-token}.sh    # Module scripts
-/etc/hostcheck/hostcheck.conf                                 # Single config file (all modules)
-/etc/cron.d/hostcheck-{health,sec,mail,oauth-token}          # Cron jobs (created by: hostcheck enable)
-/var/lib/hostcheck/{health,sec,mail,oauth-token}/            # State files (baselines, cooldowns)
-/var/log/hostcheck/hostcheck-{health,sec,mail,oauth-token}.log  # Module logs
+/usr/local/bin/hostcheck                                        # Dispatcher
+/usr/local/bin/hostcheck-{health,sec,mail,oauth-token}.sh       # Module scripts
+/etc/hostcheck/hostcheck.conf                                   # Single config file (all modules)
+/etc/cron.d/hostcheck-{health,sec,mail,oauth-token}             # Cron jobs (created by: hostcheck enable)
+/var/lib/hostcheck/{health,sec,mail,oauth-token}/               # State files (baselines, cooldowns)
+/var/log/hostcheck/hostcheck-{health,sec,mail,oauth-token}.log  # Logs
 ```
 
 ---
@@ -231,85 +231,6 @@ See [hostcheck-oauth-token/README.md](hostcheck-oauth-token/README.md) for full 
 
 ---
 
-## Example: Multiple hosts
-
-**Host 1 (Proxmox cluster node):**
-```bash
-sudo ./install.sh   # select: all
-```
-
-**Host 2 (Mail relay only):**
-```bash
-sudo ./install.sh   # select: 3 4  (mail + oauth-token)
-```
-
-**Host 3 (Workstation):**
-```bash
-sudo ./install.sh   # select: 1 2  (health + sec)
-```
-
-All send to the same Telegram chat and email — one unified alerts channel.
-
-To add a module later without reinstalling:
-
-```bash
-sudo hostcheck enable mail
-```
-
----
-
-## Troubleshooting
-
-### Check installation
-
-```bash
-ls -la /usr/local/bin/hostcheck*
-ls -la /etc/hostcheck/
-ls -la /etc/cron.d/hostcheck-*
-```
-
-### Verify config
-
-```bash
-hostcheck health --dry-run
-hostcheck sec --dry-run
-hostcheck mail --dry-run
-hostcheck oauth-token --dry-run
-```
-
-### Review logs
-
-```bash
-hostcheck log
-```
-
-### Test Telegram/email
-
-Edit the config, set `TELEGRAM_ENABLED="true"`, then run:
-```bash
-hostcheck health --dry-run
-```
-(dry-run won't send, but will log if it *would* send)
-
-### Module not running?
-
-Check cron:
-```bash
-hostcheck cron
-```
-
-Check logs:
-```bash
-grep hostcheck /var/log/syslog | tail -20
-```
-
-Enable the module if not active:
-```bash
-sudo hostcheck enable health
-```
-
----
-
 ## Uninstall
 
 Remove everything:
@@ -358,4 +279,4 @@ sudo rm -f /var/log/hostcheck/hostcheck-mail.log
 
 ---
 
-**License**: See [LICENSE](LICENSE)
+**MIT License**: See [LICENSE](LICENSE)
