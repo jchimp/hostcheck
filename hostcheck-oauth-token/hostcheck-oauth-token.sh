@@ -25,7 +25,7 @@ set -Euo pipefail
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/hostcheck/hostcheck-oauth-token.conf"
+CONF_FILE="/etc/hostcheck/hostcheck.conf"
 DRY_RUN=0
 FORCE_REFRESH_CHECK=0
 
@@ -58,8 +58,8 @@ TOKEN_STALE_CRIT_HOURS=24
 SASL_XOAUTH2_CONF="/etc/sasl-xoauth2.conf"
 TENANT_ID=""
 
-STATE_DIR="/var/lib/hostcheck-oauth-token"
-LOG_FILE="/var/log/hostcheck-oauth-token.log"
+STATE_DIR="/var/lib/hostcheck/oauth-token"
+LOG_FILE="/var/log/hostcheck/hostcheck-oauth-token.log"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -84,13 +84,6 @@ fi
 # Override refresh check if forced via CLI
 if [[ "$FORCE_REFRESH_CHECK" -eq 1 ]]; then
   CHECK_TOKEN_REFRESH="true"
-fi
-
-# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
-GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
-if [[ -f "$GENERAL_CONF" ]]; then
-  # shellcheck disable=SC1090
-  source "$GENERAL_CONF"
 fi
 
 # ── Setup ────────────────────────────────────────────────────────────────────

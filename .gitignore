@@ -1,0 +1,10 @@
+#== Notes
+docs/private/
+NOTES.md
+*.local.md
+
+#== Temp
+*.old*
+*.tmp*
+*.bak*
+*.orig*

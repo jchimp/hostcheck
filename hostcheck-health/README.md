@@ -29,63 +29,17 @@ No infrastructure dependencies. No Prometheus. No Docker. Just one script, one c
 ```
 hostcheck-health/
 ├── hostcheck-health.sh          # Main health-check script
-├── hostcheck-health.conf        # Configuration file (thresholds, notifications)
-├── install-health.sh            # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/hostcheck-health.sh          # Executable
-/etc/hostcheck/hostcheck-health.conf        # Config (chmod 600)
-/etc/cron.d/hostcheck-health                # Cron job (every 5 min)
-/var/lib/hostcheck-health/                  # State files (cooldowns, deltas)
-/var/log/hostcheck-health.log               # Local log
-```
-
----
-
-## Installation
-
-### On each Proxmox node
-
-```bash
-# Copy files to the node
-scp -r hostcheck-health/ root@<node>:/tmp/
-
-# SSH in and run the installer
-ssh root@<node>
-cd /tmp/hostcheck-health
-chmod +x install-health.sh
-./install-health.sh
-```
-
-### Configure
-
-```bash
-vi /etc/hostcheck/hostcheck-health.conf
-```
-
-At minimum, set:
-
-```conf
-TELEGRAM_ENABLED="true"
-TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-TELEGRAM_CHAT_ID="987654321"
-```
-
-### Test
-
-```bash
-# Dry run (no notifications sent)
-hostcheck-health.sh --dry-run
-
-# Live run
-hostcheck-health.sh
-
-# Watch the log
-tail -f /var/log/hostcheck-health.log
+/usr/local/bin/hostcheck-health.sh              # Executable
+/etc/hostcheck/hostcheck.conf                   # Central config (shared with all modules)
+/etc/cron.d/hostcheck-health                    # Cron job (every 5 min) — managed by: hostcheck enable/disable health
+/var/lib/hostcheck/health/                      # State files (cooldowns, deltas)
+/var/log/hostcheck/hostcheck-health.log         # Module log
 ```
 
 ---
@@ -148,6 +102,9 @@ In a 3-node cluster:
 ---
 
 ## Configuration reference
+
+Configuration lives in `/etc/hostcheck/hostcheck.conf`, shared across all modules.
+Edit it with: `sudo vi /etc/hostcheck/hostcheck.conf`
 
 | Key | Default | Description |
 |---|---|---|
@@ -367,11 +324,10 @@ Time: 2026-05-30 14:35:02
 ## Uninstall
 
 ```bash
+sudo hostcheck disable health
 sudo rm -f /usr/local/bin/hostcheck-health.sh
-sudo rm -f /etc/cron.d/hostcheck-health
-sudo rm -f /etc/hostcheck/hostcheck-health.conf
-sudo rm -rf /var/lib/hostcheck-health
-sudo rm -f /var/log/hostcheck-health.log
+sudo rm -rf /var/lib/hostcheck/health
+sudo rm -f /var/log/hostcheck/hostcheck-health.log
 ```
 
 ---
@@ -383,7 +339,7 @@ sudo rm -f /var/log/hostcheck-health.log
 | Run manually | `sudo hostcheck-health.sh` |
 | Dry run | `sudo hostcheck-health.sh --dry-run` |
 | Custom config | `sudo hostcheck-health.sh --config /path/to/conf` |
-| Edit config | `vi /etc/hostcheck/hostcheck-health.conf` |
+| Edit config | `sudo vi /etc/hostcheck/hostcheck.conf` |
 | View log | `tail -f /var/log/hostcheck-health.log` |
 | Check cron | `cat /etc/cron.d/hostcheck-health` |
-| Clear cooldowns | `rm /var/lib/hostcheck-health/*` |
+| Clear cooldowns | `rm /var/lib/hostcheck/health/*` |

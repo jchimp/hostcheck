@@ -30,7 +30,7 @@ set -Euo pipefail
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/hostcheck/hostcheck-sec.conf"
+CONF_FILE="/etc/hostcheck/hostcheck.conf"
 DRY_RUN=0
 RESET_BASELINE=0
 
@@ -69,8 +69,8 @@ CERT_CRIT_DAYS=7
 
 AUTH_LOG=""
 
-STATE_DIR="/var/lib/hostcheck-sec"
-LOG_FILE="/var/log/hostcheck-sec.log"
+STATE_DIR="/var/lib/hostcheck/sec"
+LOG_FILE="/var/log/hostcheck/hostcheck-sec.log"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -90,13 +90,6 @@ done
 if [[ -f "$CONF_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONF_FILE"
-fi
-
-# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
-GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
-if [[ -f "$GENERAL_CONF" ]]; then
-  # shellcheck disable=SC1090
-  source "$GENERAL_CONF"
 fi
 
 # ── Setup ────────────────────────────────────────────────────────────────────

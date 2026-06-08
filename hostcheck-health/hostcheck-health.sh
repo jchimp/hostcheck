@@ -26,8 +26,9 @@ set -Euo pipefail
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
 # ── Defaults (overridden by config file) ─────────────────────────────────────
-CONF_FILE="/etc/hostcheck/hostcheck-health.conf"
+CONF_FILE="/etc/hostcheck/hostcheck.conf"
 DRY_RUN=0
+RESET_BASELINE=0
 
 TELEGRAM_ENABLED="false"
 TELEGRAM_BOT_TOKEN=""
@@ -66,25 +67,19 @@ PEER_HOSTS=""
 PEER_PING_COUNT=3
 PEER_PING_TIMEOUT=5
 
-STATE_DIR="/var/lib/hostcheck-health"
-LOG_FILE="/var/log/hostcheck-health.log"
+STATE_DIR="/var/lib/hostcheck/health"
+LOG_FILE="/var/log/hostcheck/hostcheck-health.log"
 
 NIC_EXCLUDE="lo|veth.*|fwbr.*|fwpr.*|fwln.*|tap.*|docker.*"
-
-# Load general config (allows shared settings like TELEGRAM_BOT_TOKEN, EMAIL_TO)
-GENERAL_CONF="/etc/hostcheck/hostcheck.conf"
-if [[ -f "$GENERAL_CONF" ]]; then
-  # shellcheck disable=SC1090
-  source "$GENERAL_CONF"
-fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --config)  CONF_FILE="$2"; shift 2 ;;
-    --dry-run) DRY_RUN=1; shift ;;
+    --config)         CONF_FILE="$2"; shift 2 ;;
+    --dry-run)        DRY_RUN=1; shift ;;
+    --reset-baseline) RESET_BASELINE=1; shift ;;
     -h|--help)
-      echo "Usage: $0 [--config <path>] [--dry-run]"
+      echo "Usage: $0 [--config <path>] [--dry-run] [--reset-baseline]"
       exit 0
       ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -604,8 +599,17 @@ cleanup_state() {
   find "$STATE_DIR" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
 }
 
+# ── Reset baseline ───────────────────────────────────────────────────────────
+reset_baseline() {
+  echo "Resetting health baselines in ${STATE_DIR}..."
+  rm -f "${STATE_DIR}"/nic_* "${STATE_DIR}"/cpu_high
+  echo "Done. Next run will establish new baselines."
+  exit 0
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 main() {
+  [[ "$RESET_BASELINE" -eq 1 ]] && reset_baseline
   log "========== Health check starting =========="
 
   check_nic

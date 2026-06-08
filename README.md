@@ -1,6 +1,8 @@
-# hostcheck — Unified Host Monitoring Suite
+# hostcheck — Host Monitoring Scripts
 
-A cohesive collection of lightweight, cron-based monitoring scripts for Linux hosts. Catches system health issues, security problems, mail relay faults, and OAuth token expirations **before** they become outages.
+A cohesive collection of lightweight, cron-based monitoring scripts for Linux or Proxmox hosts. Catches system health issues, security problems, mail relay faults, and OAuth token expirations **before** they become outages.
+
+Also great for Postfix email relays for M365 or Google Apps.
 
 Install once, configure once, get alerts via Telegram and/or email.
 
@@ -8,31 +10,34 @@ Install once, configure once, get alerts via Telegram and/or email.
 
 ## Quick Start
 
-### Install all four tools:
+### Install
+
 ```bash
-sudo ./install-all.sh
+sudo ./install.sh
 ```
 
-### Or install just what you need:
+The installer copies all module scripts to `/usr/local/bin`, installs the dispatcher, and prompts which modules to activate (creates cron jobs for the selected ones).
+
+### Enable or disable modules at any time
+
 ```bash
-sudo ./install-health.sh      # System health (5 min)
-sudo ./install-sec.sh         # Security auditing (15 min)
-sudo ./install-mail.sh        # Postfix relay (5 min)
-sudo ./install-oauth-token.sh # OAuth token expiry (30 min)
+sudo hostcheck enable health
+sudo hostcheck enable all
+sudo hostcheck disable mail
 ```
 
-### Configure once for all tools:
+### Configure
+
 ```bash
 sudo vi /etc/hostcheck/hostcheck.conf
 ```
-Set your Telegram and email settings — all four scripts will use them.
 
-### Configure each tool (optional):
+One config file, shared by all four modules. At minimum, set your Telegram or email credentials.
+
+### Check status
+
 ```bash
-sudo vi /etc/hostcheck/hostcheck-health.conf
-sudo vi /etc/hostcheck/hostcheck-sec.conf
-sudo vi /etc/hostcheck/hostcheck-mail.conf
-sudo vi /etc/hostcheck/hostcheck-oauth-token.conf
+hostcheck status
 ```
 
 ---
@@ -53,50 +58,33 @@ sudo vi /etc/hostcheck/hostcheck-oauth-token.conf
 After running the installer:
 
 ```
-/usr/local/bin/hostcheck-{health,sec,mail,oauth-token}.sh
-/etc/hostcheck/hostcheck.conf                                 # General config (shared)
-/etc/hostcheck/hostcheck-{health,sec,mail,oauth-token}.conf   # Module configs
-/etc/cron.d/hostcheck-{health,sec,mail,oauth-token}           # Cron jobs
-/var/lib/hostcheck-{health,sec,mail,oauth-token}/             # State files (baselines, cooldowns)
-/var/log/hostcheck-{health,sec,mail,oauth-token}.log          # Local logs
+/usr/local/bin/hostcheck                                      # Dispatcher (in $PATH)
+/usr/local/bin/hostcheck-{health,sec,mail,oauth-token}.sh    # Module scripts
+/etc/hostcheck/hostcheck.conf                                 # Single config file (all modules)
+/etc/cron.d/hostcheck-{health,sec,mail,oauth-token}          # Cron jobs (created by: hostcheck enable)
+/var/lib/hostcheck/{health,sec,mail,oauth-token}/            # State files (baselines, cooldowns)
+/var/log/hostcheck/hostcheck-{health,sec,mail,oauth-token}.log  # Module logs
 ```
 
 ---
 
-## Configuration hierarchy
+## Configuration
 
-Scripts load config in this order (later overrides earlier):
-
-1. **Built-in defaults** in the script
-2. **Module config** `/etc/hostcheck/hostcheck-{TYPE}.conf`
-3. **General config** `/etc/hostcheck/hostcheck.conf`
-
-This means:
-- Set `TELEGRAM_BOT_TOKEN` once in `hostcheck.conf` → used by all 4 tools
-- Override it in `hostcheck-mail.conf` → just mail tool uses different token
-- All other tools still use the general setting
-
----
-
-## Configuration reference
-
-### General config (`/etc/hostcheck/hostcheck.conf`)
+All four modules share a single config file at `/etc/hostcheck/hostcheck.conf`. It covers notification settings (Telegram, email, syslog, cooldown) and all module-specific thresholds and check toggles.
 
 ```bash
-# Telegram (set once, use everywhere)
+# Telegram (set once, used by all modules)
 TELEGRAM_ENABLED="true"
 TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
 TELEGRAM_CHAT_ID="987654321"
 
-# Email (set once, use everywhere)
+# Email (set once, used by all modules)
 EMAIL_ENABLED="false"
 EMAIL_TO="admin@example.com"
 EMAIL_FROM="hostcheck@example.com"
 ```
 
-### Module-specific configs
-
-Each tool has its own config in `/etc/hostcheck/`. For details, see:
+For the full list of module-specific settings, see:
 
 - [hostcheck-health/README.md](hostcheck-health/README.md) — Hardware thresholds, peer hosts, NIC exclusions
 - [hostcheck-sec/README.md](hostcheck-sec/README.md) — SSH/sudo thresholds, cert paths, update checks
@@ -109,7 +97,7 @@ Each tool has its own config in `/etc/hostcheck/`. For details, see:
 
 ### Alert system
 
-All tools use the same pipeline:
+All modules use the same pipeline:
 
 ```
 Check runs → Issues detected → Alert queued
@@ -122,67 +110,71 @@ Check runs → Issues detected → Alert queued
 
 ### Cron schedule
 
+Cron jobs are created and removed by `hostcheck enable/disable`. The schedules are:
+
 ```
-* * * * *  root /usr/local/bin/hostcheck-health.sh     # Every 5 min
-* * * * *  root /usr/local/bin/hostcheck-sec.sh        # Every 15 min
-* * * * *  root /usr/local/bin/hostcheck-mail.sh       # Every 5 min
-* * * * *  root /usr/local/bin/hostcheck-oauth-token.sh # Every 30 min
+*/5  * * * *  root /usr/local/bin/hostcheck-health.sh      # Every 5 min
+*/15 * * * *  root /usr/local/bin/hostcheck-sec.sh         # Every 15 min
+*/5  * * * *  root /usr/local/bin/hostcheck-mail.sh        # Every 5 min
+*/30 * * * *  root /usr/local/bin/hostcheck-oauth-token.sh # Every 30 min
 ```
 
-(Cron files are in `/etc/cron.d/hostcheck-*`)
+(Cron files live in `/etc/cron.d/hostcheck-*`)
 
 ### Baselines & state
 
-Each tool maintains state in `/var/lib/hostcheck-{TYPE}/`:
+Each module maintains state in `/var/lib/hostcheck/{module}/`:
 
 - **Baselines**: First run saves current state (NIC error counts, authorized_keys hashes, listening ports)
-- **Deltas**: Subsequent runs compare against baseline → only alert on changes
+- **Deltas**: Subsequent runs compare against baseline — only alert on changes
 - **Cooldowns**: Per-alert cooldown file prevents spam
 
 To reset baselines after expected changes:
 
 ```bash
-sudo hostcheck-health.sh --reset-baseline
-sudo hostcheck-sec.sh --reset-baseline
-sudo hostcheck-mail.sh --reset-baseline
+sudo hostcheck health --reset-baseline
+sudo hostcheck sec --reset-baseline
+sudo hostcheck mail --reset-baseline
 ```
 
 ---
 
-## Monitoring & logs
+## Running & monitoring
+
+### Run a module manually
+
+```bash
+hostcheck health
+hostcheck sec --dry-run
+hostcheck mail --reset-baseline
+hostcheck oauth-token --check-refresh
+```
 
 ### View logs (real-time)
 
 ```bash
-tail -f /var/log/hostcheck-health.log
-tail -f /var/log/hostcheck-sec.log
-tail -f /var/log/hostcheck-mail.log
-tail -f /var/log/hostcheck-oauth-token.log
+hostcheck log           # tail all module logs
+hostcheck log health    # tail one module's log
 ```
 
-### Test a tool
+### Check status
 
 ```bash
-# Dry run (no notifications sent, no state updated)
-sudo hostcheck-health.sh --dry-run
+hostcheck status
+```
 
-# Live run
-sudo hostcheck-health.sh
+Shows which modules are enabled (have an active cron job), whether their scripts are installed, and the current notification config.
 
-# Custom config
-sudo hostcheck-health.sh --config /etc/hostcheck/hostcheck-health.conf
+### Check cron jobs
+
+```bash
+hostcheck cron
 ```
 
 ### Clear cooldown (force re-alert)
 
 ```bash
-rm /var/lib/hostcheck-{TYPE}/cooldown_*
-```
-
-### Check cron jobs
-
-```bash
-grep hostcheck /etc/cron.d/* 
+rm /var/lib/hostcheck/{health,sec,mail,oauth-token}/cooldown_*
 ```
 
 ---
@@ -197,7 +189,7 @@ Checks: NIC errors & drops, disk space, SMART disk temps, Ceph cluster status, C
 
 **Great for:** Proxmox clusters, hypervisor hosts, any Linux system with storage/clustering.
 
-👉 See [hostcheck-health/README.md](hostcheck-health/README.md) for full details.
+See [hostcheck-health/README.md](hostcheck-health/README.md) for full details.
 
 ---
 
@@ -209,7 +201,7 @@ Checks: Failed SSH logins, root SSH logins, failed sudo attempts, new user accou
 
 **Great for:** Finding intrusions, tracking config changes, staying on top of patches.
 
-👉 See [hostcheck-sec/README.md](hostcheck-sec/README.md) for full details.
+See [hostcheck-sec/README.md](hostcheck-sec/README.md) for full details.
 
 ---
 
@@ -221,7 +213,7 @@ Checks: Postfix service status, mail queue size & growth, deferred message age, 
 
 **Great for:** Mail relay operators, Gmail/Office365 relays, alerting before queue backlog.
 
-👉 See [hostcheck-mail/README.md](hostcheck-mail/README.md) for full details.
+See [hostcheck-mail/README.md](hostcheck-mail/README.md) for full details.
 
 ---
 
@@ -235,7 +227,7 @@ Checks: Token file exists, access token expiry time, token file staleness (auto-
 
 **Great for:** M365 OAuth relay setups using sasl-xoauth2.
 
-👉 See [hostcheck-oauth-token/README.md](hostcheck-oauth-token/README.md) for full details.
+See [hostcheck-oauth-token/README.md](hostcheck-oauth-token/README.md) for full details.
 
 ---
 
@@ -243,25 +235,26 @@ Checks: Token file exists, access token expiry time, token file staleness (auto-
 
 **Host 1 (Proxmox cluster node):**
 ```bash
-sudo ./install-all.sh
-# Runs: health, sec, mail, oauth-token
+sudo ./install.sh   # select: all
 ```
 
 **Host 2 (Mail relay only):**
 ```bash
-sudo ./install-mail.sh
-sudo ./install-oauth-token.sh
-# Runs: mail, oauth-token (skips health, sec)
+sudo ./install.sh   # select: 3 4  (mail + oauth-token)
 ```
 
 **Host 3 (Workstation):**
 ```bash
-sudo ./install-health.sh
-sudo ./install-sec.sh
-# Runs: health, sec (skips mail, oauth-token)
+sudo ./install.sh   # select: 1 2  (health + sec)
 ```
 
 All send to the same Telegram chat and email — one unified alerts channel.
+
+To add a module later without reinstalling:
+
+```bash
+sudo hostcheck enable mail
+```
 
 ---
 
@@ -270,7 +263,7 @@ All send to the same Telegram chat and email — one unified alerts channel.
 ### Check installation
 
 ```bash
-ls -la /usr/local/bin/hostcheck-*.sh
+ls -la /usr/local/bin/hostcheck*
 ls -la /etc/hostcheck/
 ls -la /etc/cron.d/hostcheck-*
 ```
@@ -278,41 +271,41 @@ ls -la /etc/cron.d/hostcheck-*
 ### Verify config
 
 ```bash
-sudo hostcheck-health.sh --dry-run
-sudo hostcheck-sec.sh --dry-run
-sudo hostcheck-mail.sh --dry-run
-sudo hostcheck-oauth-token.sh --dry-run
+hostcheck health --dry-run
+hostcheck sec --dry-run
+hostcheck mail --dry-run
+hostcheck oauth-token --dry-run
 ```
 
 ### Review logs
 
 ```bash
-tail -20 /var/log/hostcheck-*.log
+hostcheck log
 ```
 
 ### Test Telegram/email
 
 Edit the config, set `TELEGRAM_ENABLED="true"`, then run:
 ```bash
-sudo hostcheck-health.sh --dry-run
+hostcheck health --dry-run
 ```
-(DRY-RUN won't send, but will log if it *would* send)
+(dry-run won't send, but will log if it *would* send)
 
 ### Module not running?
 
 Check cron:
 ```bash
-sudo grep hostcheck /etc/cron.d/*
-```
-
-Verify the script is executable:
-```bash
-ls -l /usr/local/bin/hostcheck-*.sh
+hostcheck cron
 ```
 
 Check logs:
 ```bash
 grep hostcheck /var/log/syslog | tail -20
+```
+
+Enable the module if not active:
+```bash
+sudo hostcheck enable health
 ```
 
 ---
@@ -321,20 +314,19 @@ grep hostcheck /var/log/syslog | tail -20
 
 Remove everything:
 ```bash
-sudo rm -f /usr/local/bin/hostcheck-*.sh
-sudo rm -f /etc/cron.d/hostcheck-*
-sudo rm -rf /var/lib/hostcheck-*
-sudo rm -f /var/log/hostcheck-*.log
+sudo hostcheck disable all
+sudo rm -f /usr/local/bin/hostcheck /usr/local/bin/hostcheck-*.sh
+sudo rm -rf /var/lib/hostcheck
+sudo rm -rf /var/log/hostcheck
 sudo rm -rf /etc/hostcheck
 ```
 
-Or uninstall just one tool:
+Or remove just one module:
 ```bash
+sudo hostcheck disable mail
 sudo rm -f /usr/local/bin/hostcheck-mail.sh
-sudo rm -f /etc/cron.d/hostcheck-mail
-sudo rm -rf /var/lib/hostcheck-mail
-sudo rm -f /var/log/hostcheck-mail.log
-sudo rm -f /etc/hostcheck/hostcheck-mail.conf
+sudo rm -rf /var/lib/hostcheck/mail
+sudo rm -f /var/log/hostcheck/hostcheck-mail.log
 ```
 
 ---
@@ -343,18 +335,17 @@ sudo rm -f /etc/hostcheck/hostcheck-mail.conf
 
 | Task | Command |
 |---|---|
-| Install all | `sudo ./install-all.sh` |
-| Install health only | `sudo ./install-health.sh` |
-| Install mail + oauth | `sudo ./install-mail.sh && sudo ./install-oauth-token.sh` |
-| View all logs | `tail -f /var/log/hostcheck-*.log` |
-| Test health check | `sudo hostcheck-health.sh --dry-run` |
-| Reset health baselines | `sudo hostcheck-health.sh --reset-baseline` |
-| Manual mail check | `sudo hostcheck-mail.sh` |
-| Test OAuth token refresh | `sudo hostcheck-oauth-token.sh --check-refresh` |
-| Edit general config | `sudo vi /etc/hostcheck/hostcheck.conf` |
-| Edit health config | `sudo vi /etc/hostcheck/hostcheck-health.conf` |
-| View cron schedule | `cat /etc/cron.d/hostcheck-*` |
-| Check status | `sudo hostcheck-health.sh --dry-run` (repeat for each tool) |
+| Install | `sudo ./install.sh` |
+| Enable a module | `sudo hostcheck enable <module\|all>` |
+| Disable a module | `sudo hostcheck disable <module\|all>` |
+| Run a module | `hostcheck <module> [--dry-run]` |
+| View all logs | `hostcheck log` |
+| View one module's log | `hostcheck log <module>` |
+| Check status | `hostcheck status` |
+| Check cron jobs | `hostcheck cron` |
+| Reset baselines | `sudo hostcheck <module> --reset-baseline` |
+| Test OAuth refresh | `sudo hostcheck oauth-token --check-refresh` |
+| Edit config | `sudo vi /etc/hostcheck/hostcheck.conf` |
 
 ---
 

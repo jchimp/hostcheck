@@ -64,75 +64,17 @@ The token file is JSON and typically looks like:
 ```
 hostcheck-oauth-token/
 ├── hostcheck-oauth-token.sh       # Main script
-├── hostcheck-oauth-token.conf     # Configuration
-├── install-oauth-token.sh         # Installer
 └── README.md                      # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/hostcheck-oauth-token.sh       # Executable
-/etc/hostcheck/hostcheck-oauth-token.conf     # Config (chmod 600)
-/etc/cron.d/hostcheck-oauth-token             # Cron job (every 30 min)
-/var/lib/hostcheck-oauth-token/               # State files (cooldowns)
-/var/log/hostcheck-oauth-token.log            # Local log
-```
-
----
-
-## Installation
-
-```bash
-# Copy files to the host
-scp -r hostcheck-oauth-token/ root@<host>:/tmp/
-
-# SSH in and run the installer
-ssh root@<host>
-cd /tmp/hostcheck-oauth-token
-chmod +x install-oauth-token.sh
-./install-oauth-token.sh
-```
-
-### Configure
-
-```bash
-sudo vi /etc/hostcheck/hostcheck-oauth-token.conf
-```
-
-At minimum, set:
-
-```conf
-TOKEN_FILES="/var/spool/postfix/sasl2/tokens/postfix@yourdomain.com"
-TELEGRAM_ENABLED="true"
-TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-TELEGRAM_CHAT_ID="987654321"
-```
-
-### How to find your token file path
-
-```bash
-# Check sasl_passwd for token file references
-cat /etc/postfix/sasl_passwd
-
-# Or look in the standard sasl-xoauth2 token directory
-ls -la /var/spool/postfix/sasl2/tokens/
-
-# Or check the Postfix config
-postconf smtp_sasl_password_maps
-```
-
-### Test
-
-```bash
-# Dry run
-sudo hostcheck-oauth-token.sh --dry-run
-
-# Live run
-sudo hostcheck-oauth-token.sh
-
-# Force a token refresh test (hits Microsoft API)
-sudo hostcheck-oauth-token.sh --check-refresh
+/usr/local/bin/hostcheck-oauth-token.sh         # Executable
+/etc/hostcheck/hostcheck.conf                   # Central config (shared with all modules)
+/etc/cron.d/hostcheck-oauth-token               # Cron job (every 30 min) — managed by: hostcheck enable/disable oauth-token
+/var/lib/hostcheck/oauth-token/                 # State files (cooldowns)
+/var/log/hostcheck/hostcheck-oauth-token.log    # Module log
 ```
 
 ---
@@ -177,6 +119,9 @@ CHECK_TOKEN_REFRESH="true"
 
 ## Configuration reference
 
+Configuration lives in `/etc/hostcheck/hostcheck.conf`, shared across all modules.
+Edit it with: `sudo vi /etc/hostcheck/hostcheck.conf`
+
 | Key | Default | Description |
 |---|---|---|
 | `TELEGRAM_ENABLED` | `false` | Enable Telegram notifications |
@@ -219,10 +164,10 @@ Together they give you both early warning and failure detection.
 
 | Script | Focus | Cron | State |
 |---|---|---|---|
-| `hostcheck-health.sh` | Hardware / services | 5 min | `/var/lib/hostcheck-health/` |
-| `hostcheck-sec.sh` | Security / auth / drift | 15 min | `/var/lib/hostcheck-sec/` |
-| `hostcheck-mail.sh` | Postfix / relay health | 5 min | `/var/lib/hostcheck-mail/` |
-| `hostcheck-oauth-token.sh` | OAuth token expiry | 30 min | `/var/lib/hostcheck-oauth-token/` |
+| `hostcheck-health.sh` | Hardware / services | 5 min | `/var/lib/hostcheck/health/` |
+| `hostcheck-sec.sh` | Security / auth / drift | 15 min | `/var/lib/hostcheck/sec/` |
+| `hostcheck-mail.sh` | Postfix / relay health | 5 min | `/var/lib/hostcheck/mail/` |
+| `hostcheck-oauth-token.sh` | OAuth token expiry | 30 min | `/var/lib/hostcheck/oauth-token/` |
 
 ---
 
@@ -307,11 +252,10 @@ This usually means no mail has been sent recently (weekends, quiet periods). sas
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/hostcheck-oauth-token.sh
-rm -f /etc/cron.d/hostcheck-oauth-token
-rm -f /etc/hostcheck/hostcheck-oauth-token.conf
-rm -rf /var/lib/hostcheck-oauth-token
-rm -f /var/log/hostcheck-oauth-token.log
+sudo hostcheck disable oauth-token
+sudo rm -f /usr/local/bin/hostcheck-oauth-token.sh
+sudo rm -rf /var/lib/hostcheck/oauth-token
+sudo rm -f /var/log/hostcheck/hostcheck-oauth-token.log
 ```
 
 ---
@@ -324,7 +268,7 @@ rm -f /var/log/hostcheck-oauth-token.log
 | Dry run | `sudo hostcheck-oauth-token.sh --dry-run` |
 | Force refresh test | `sudo hostcheck-oauth-token.sh --check-refresh` |
 | Custom config | `sudo hostcheck-oauth-token.sh --config /path/to/conf` |
-| Edit config | `vi /etc/hostcheck/hostcheck-oauth-token.conf` |
+| Edit config | `sudo vi /etc/hostcheck/hostcheck.conf` |
 | View log | `tail -f /var/log/hostcheck-oauth-token.log` |
 | Check cron | `cat /etc/cron.d/hostcheck-oauth-token` |
-| Clear cooldowns | `rm /var/lib/hostcheck-oauth-token/cooldown_*` |
+| Clear cooldowns | `rm /var/lib/hostcheck/oauth-token/cooldown_*` |
