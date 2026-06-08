@@ -14,7 +14,7 @@ set -Euo pipefail
 # ── Paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-INSTALL_BIN_DIR="/usr/local/bin/hostcheck"
+INSTALL_BIN_DIR="/usr/local/bin"
 DISPATCHER="/usr/local/bin/hostcheck"
 CONF_DIR="/etc/hostcheck"
 CONF_FILE="${CONF_DIR}/hostcheck.conf"
@@ -31,10 +31,10 @@ declare -A MODULE_CRON_SCHEDULE=(
 
 # ── Old paths to clean up ──────────────────────────────────────────────────────
 OLD_SCRIPTS=(
-  /usr/local/bin/hostcheck-health.sh
-  /usr/local/bin/hostcheck-sec.sh
-  /usr/local/bin/hostcheck-mail.sh
-  /usr/local/bin/hostcheck-oauth-token.sh
+  /usr/local/bin/hostcheck/hostcheck-health.sh
+  /usr/local/bin/hostcheck/hostcheck-sec.sh
+  /usr/local/bin/hostcheck/hostcheck-mail.sh
+  /usr/local/bin/hostcheck/hostcheck-oauth-token.sh
 )
 OLD_STATE_DIRS=(
   /var/lib/hostcheck-health
@@ -199,9 +199,11 @@ fi
 echo "── Installing shared infrastructure ───────────────────"
 echo ""
 
-# Script directory
-mkdir -p "$INSTALL_BIN_DIR"
-echo "  Created: ${INSTALL_BIN_DIR}/"
+# Remove old hostcheck subdirectory if it exists as a directory (layout change)
+if [[ -d "/usr/local/bin/hostcheck" ]]; then
+  rm -rf "/usr/local/bin/hostcheck"
+  echo "  Removed old subdir: /usr/local/bin/hostcheck/"
+fi
 
 # Log directory
 mkdir -p "$LOG_DIR"

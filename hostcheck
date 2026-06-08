@@ -17,7 +17,7 @@ set -Euo pipefail
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
-SCRIPT_DIR="/usr/local/bin/hostcheck"
+SCRIPT_DIR="/usr/local/bin"
 CONF_FILE="/etc/hostcheck/hostcheck.conf"
 LOG_DIR="/var/log/hostcheck"
 CRON_PATTERN="/etc/cron.d/hostcheck-*"
