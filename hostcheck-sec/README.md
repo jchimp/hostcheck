@@ -31,63 +31,17 @@ No infrastructure dependencies. No agents. Just one script, one config file, and
 ```
 hostcheck-sec/
 ├── hostcheck-sec.sh             # Main security check script
-├── hostcheck-sec.conf           # Configuration file
-├── install-sec.sh          # Installer (copies files, sets up cron)
 └── README.md                    # This file
 ```
 
 After installation:
 
 ```
-/usr/local/bin/hostcheck-sec.sh             # Executable
-/etc/hostcheck/hostcheck-sec.conf       # Config (chmod 600)
-/etc/cron.d/hostcheck-sec                   # Cron job (every 15 min)
-/var/lib/hostcheck-sec/                     # State files (baselines, offsets, cooldowns)
-/var/log/hostcheck-sec.log                  # Local log
-```
-
----
-
-## Installation
-
-### On each node
-
-```bash
-# Copy files to the node
-scp -r hostcheck-sec/ root@<node>:/tmp/
-
-# SSH in and run the installer
-ssh root@<node>
-cd /tmp/hostcheck-sec
-chmod +x install-sec.sh
-./install-sec.sh
-```
-
-### Configure
-
-```bash
-vi /etc/hostcheck/hostcheck-sec.conf
-```
-
-At minimum, set:
-
-```conf
-TELEGRAM_ENABLED="true"
-TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-TELEGRAM_CHAT_ID="987654321"
-```
-
-### Test
-
-```bash
-# Dry run (no notifications sent)
-hostcheck-sec.sh --dry-run
-
-# Live run
-hostcheck-sec.sh
-
-# Watch the log
-tail -f /var/log/hostcheck-sec.log
+/usr/local/bin/hostcheck-sec.sh                 # Executable
+/etc/hostcheck/hostcheck.conf                   # Central config (shared with all modules)
+/etc/cron.d/hostcheck-sec                       # Cron job (every 15 min) — managed by: hostcheck enable/disable sec
+/var/lib/hostcheck/sec/                         # State files (baselines, offsets, cooldowns)
+/var/log/hostcheck/hostcheck-sec.log            # Module log
 ```
 
 ---
@@ -158,6 +112,9 @@ If you intentionally allow password auth or root login, set `CHECK_SSH_CONFIG="f
 ---
 
 ## Configuration reference
+
+Configuration lives in `/etc/hostcheck/hostcheck.conf`, shared across all modules.
+Edit it with: `sudo vi /etc/hostcheck/hostcheck.conf`
 
 | Key | Default | Description |
 |---|---|---|
@@ -299,8 +256,8 @@ These two scripts are designed to work side-by-side:
 
 | Script | Focus | Cron | State dir |
 |---|---|---|---|
-| `hostcheck-health.sh` | Hardware/service health | every 5 min | `/var/lib/hostcheck-health/` |
-| `hostcheck-sec.sh` | Security/auth/drift | every 15 min | `/var/lib/hostcheck-sec/` |
+| `hostcheck-health.sh` | Hardware/service health | every 5 min | `/var/lib/hostcheck/health/` |
+| `hostcheck-sec.sh` | Security/auth/drift | every 15 min | `/var/lib/hostcheck/sec/` |
 
 They share the same notification config format, so you can copy your Telegram credentials between them.
 
@@ -320,11 +277,10 @@ They share the same notification config format, so you can copy your Telegram cr
 ## Uninstall
 
 ```bash
-rm -f /usr/local/bin/hostcheck-sec.sh
-rm -f /etc/cron.d/hostcheck-sec
-rm -f /etc/hostcheck/hostcheck-sec.conf
-rm -rf /var/lib/hostcheck-sec
-rm -f /var/log/hostcheck-sec.log
+sudo hostcheck disable sec
+sudo rm -f /usr/local/bin/hostcheck-sec.sh
+sudo rm -rf /var/lib/hostcheck/sec
+sudo rm -f /var/log/hostcheck/hostcheck-sec.log
 ```
 
 ---
@@ -337,7 +293,7 @@ rm -f /var/log/hostcheck-sec.log
 | Dry run | `sudo hostcheck-sec.sh --dry-run` |
 | Custom config | `sudo hostcheck-sec.sh --config /path/to/conf` |
 | Reset baselines | `sudo hostcheck-sec.sh --reset-baseline` |
-| Edit config | `vi /etc/hostcheck/hostcheck-sec.conf` |
+| Edit config | `sudo vi /etc/hostcheck/hostcheck.conf` |
 | View log | `tail -f /var/log/hostcheck-sec.log` |
 | Check cron | `cat /etc/cron.d/hostcheck-sec` |
-| Clear cooldowns | `rm /var/lib/hostcheck-sec/cooldown_*` |
+| Clear cooldowns | `rm /var/lib/hostcheck/sec/cooldown_*` |
