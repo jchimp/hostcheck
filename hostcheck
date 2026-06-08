@@ -6,11 +6,13 @@
 # Installed at: /usr/local/bin/hostcheck
 #
 # Usage:
-#   hostcheck <module> [args...]     Run a module (health, sec, mail, oauth-token)
-#   hostcheck cron                   Show all installed cron jobs
-#   hostcheck log [module]           Tail module log(s)
-#   hostcheck status                 Show enabled modules and notification config
-#   hostcheck help                   Show this help
+#   hostcheck <module> [args...]          Run a module
+#   hostcheck enable <module|all>         Create cron job for module(s)
+#   hostcheck disable <module|all>        Remove cron job for module(s)
+#   hostcheck cron                        Show all installed cron jobs
+#   hostcheck log [module]                Tail module log(s)
+#   hostcheck status                      Show enabled modules and notification config
+#   hostcheck help                        Show this help
 ###############################################################################
 
 set -Euo pipefail
@@ -20,23 +22,48 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH
 SCRIPT_DIR="/usr/local/bin"
 CONF_FILE="/etc/hostcheck/hostcheck.conf"
 LOG_DIR="/var/log/hostcheck"
-CRON_PATTERN="/etc/cron.d/hostcheck-*"
+CRON_DIR="/etc/cron.d"
+CRON_PATTERN="${CRON_DIR}/hostcheck-*"
 
 MODULES=(health sec mail oauth-token)
+
+declare -A MODULE_CRON_SCHEDULE=(
+  [health]="*/5 * * * *"
+  [sec]="*/15 * * * *"
+  [mail]="*/5 * * * *"
+  [oauth-token]="*/30 * * * *"
+)
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+require_root() {
+  [[ "$EUID" -eq 0 ]] || die "This command requires root. Run: sudo hostcheck $*"
+}
+
+validate_module() {
+  local module="$1"
+  for m in "${MODULES[@]}"; do
+    [[ "$m" == "$module" ]] && return 0
+  done
+  die "Unknown module: ${module}. Valid modules: ${MODULES[*]}"
+}
 
 usage() {
   cat <<EOF
 Usage: hostcheck <command> [options]
 
 Commands:
-  health [args]       Run the system health module
-  sec [args]          Run the security module
-  mail [args]         Run the mail relay module
-  oauth-token [args]  Run the OAuth token module
-  cron                List installed hostcheck cron jobs
-  log [module]        Tail log(s) — omit module to tail all
-  status              Show enabled modules and notification config
-  help                Show this help
+  health [args]              Run the system health module
+  sec [args]                 Run the security module
+  mail [args]                Run the mail relay module
+  oauth-token [args]         Run the OAuth token module
+  enable <module|all>        Enable module(s) by installing cron job(s)
+  disable <module|all>       Disable module(s) by removing cron job(s)
+  cron                       List installed hostcheck cron jobs
+  log [module]               Tail log(s) — omit module to tail all
+  status                     Show enabled modules and notification config
+  help                       Show this help
 
 Module args (passed through to the underlying script):
   --dry-run           Run without sending alerts or updating state
@@ -46,23 +73,90 @@ Module args (passed through to the underlying script):
 
 Examples:
   hostcheck health --dry-run
-  hostcheck sec --reset-baseline
+  hostcheck enable health
+  hostcheck enable all
+  hostcheck disable sec
   hostcheck log health
   hostcheck status
 EOF
 }
 
+# ── Module runner ─────────────────────────────────────────────────────────────
 run_module() {
   local module="$1"; shift
   local script="${SCRIPT_DIR}/hostcheck-${module}.sh"
   if [[ ! -x "$script" ]]; then
     echo "ERROR: Module script not found or not executable: ${script}" >&2
-    echo "       Run install.sh to install the ${module} module." >&2
+    echo "       Run install.sh to install hostcheck." >&2
     exit 1
   fi
   exec "$script" "$@"
 }
 
+# ── Enable / Disable ──────────────────────────────────────────────────────────
+_enable_one() {
+  local module="$1"
+  local script="${SCRIPT_DIR}/hostcheck-${module}.sh"
+  local cron_file="${CRON_DIR}/hostcheck-${module}"
+  local schedule="${MODULE_CRON_SCHEDULE[$module]}"
+  local log_file="${LOG_DIR}/hostcheck-${module}.log"
+
+  if [[ ! -x "$script" ]]; then
+    echo "  ERROR: script not found or not executable: ${script}" >&2
+    echo "         Run install.sh first." >&2
+    return 1
+  fi
+
+  cat > "$cron_file" <<EOF
+# hostcheck-${module} — managed by: hostcheck enable/disable
+${schedule} root ${script} >> /dev/null 2>&1
+EOF
+  chmod 644 "$cron_file"
+  touch "$log_file"
+  echo "  Enabled:  ${module}  (${schedule})"
+}
+
+_disable_one() {
+  local module="$1"
+  local cron_file="${CRON_DIR}/hostcheck-${module}"
+
+  if [[ -f "$cron_file" ]]; then
+    rm -f "$cron_file"
+    echo "  Disabled: ${module}"
+  else
+    echo "  Already disabled: ${module}"
+  fi
+}
+
+cmd_enable() {
+  local target="$1"
+  require_root "enable ${target}"
+
+  if [[ "$target" == "all" ]]; then
+    for m in "${MODULES[@]}"; do
+      _enable_one "$m"
+    done
+  else
+    validate_module "$target"
+    _enable_one "$target"
+  fi
+}
+
+cmd_disable() {
+  local target="$1"
+  require_root "disable ${target}"
+
+  if [[ "$target" == "all" ]]; then
+    for m in "${MODULES[@]}"; do
+      _disable_one "$m"
+    done
+  else
+    validate_module "$target"
+    _disable_one "$target"
+  fi
+}
+
+# ── Cron / Log / Status ───────────────────────────────────────────────────────
 cmd_cron() {
   local found=0
   for f in $CRON_PATTERN; do
@@ -110,7 +204,6 @@ cmd_status() {
     exit 0
   fi
 
-  # Source config to read values
   # shellcheck disable=SC1090
   source "$CONF_FILE"
 
@@ -118,15 +211,13 @@ cmd_status() {
   echo ""
   echo "  Modules:"
   for m in "${MODULES[@]}"; do
-    local var="MODULE_${m//-/_}_ENABLED"
-    var="${var^^}"
-    local enabled="${!var:-false}"
     local script="${SCRIPT_DIR}/hostcheck-${m}.sh"
-    local cron="/etc/cron.d/hostcheck-${m}"
-    local installed=""
-    [[ -x "$script" ]] && installed+=" script" || installed+=" [no script]"
-    [[ -f "$cron" ]]   && installed+=" cron"   || installed+=" [no cron]"
-    printf "    %-15s  enabled=%-5s  %s\n" "$m" "$enabled" "$installed"
+    local cron="${CRON_DIR}/hostcheck-${m}"
+    local enabled="false"
+    local script_status="[no script]"
+    [[ -f "$cron" ]]   && enabled="true"
+    [[ -x "$script" ]] && script_status="installed"
+    printf "    %-15s  enabled=%-5s  script=%-12s\n" "$m" "$enabled" "$script_status"
   done
 
   echo ""
@@ -152,6 +243,14 @@ case "${1:-}" in
   health|sec|mail|oauth-token)
     module="$1"; shift
     run_module "$module" "$@"
+    ;;
+  enable)
+    [[ -n "${2:-}" ]] || { echo "Usage: hostcheck enable <module|all>" >&2; exit 1; }
+    cmd_enable "$2"
+    ;;
+  disable)
+    [[ -n "${2:-}" ]] || { echo "Usage: hostcheck disable <module|all>" >&2; exit 1; }
+    cmd_disable "$2"
     ;;
   cron)
     cmd_cron

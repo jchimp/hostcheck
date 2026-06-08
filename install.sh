@@ -3,7 +3,8 @@
 # install.sh
 #
 # Interactive installer for the hostcheck suite.
-# Installs selected modules, the master dispatcher, and cron jobs.
+# Installs all module scripts and the master dispatcher.
+# Prompts which modules to enable (creates cron jobs via hostcheck enable).
 # Detects and removes old-path artifacts from previous installs.
 #
 # Usage: sudo ./install.sh
@@ -22,12 +23,6 @@ LOG_DIR="/var/log/hostcheck"
 STATE_BASE="/var/lib/hostcheck"
 
 MODULES=(health sec mail oauth-token)
-declare -A MODULE_CRON_SCHEDULE=(
-  [health]="*/5 * * * *"
-  [sec]="*/15 * * * *"
-  [mail]="*/5 * * * *"
-  [oauth-token]="*/30 * * * *"
-)
 
 # ── Old paths to clean up ──────────────────────────────────────────────────────
 OLD_SCRIPTS=(
@@ -121,7 +116,9 @@ if [[ "${#OLD_FOUND[@]}" -gt 0 ]]; then
 fi
 
 # ── Step 2: Module selection ───────────────────────────────────────────────────
-echo "── Select modules to install ──────────────────────────"
+echo "── Select modules to enable ───────────────────────────"
+echo ""
+echo "  All module scripts will be installed. Select which to activate (create cron jobs)."
 echo ""
 echo "  Modules:"
 echo "    1) health      — System & cluster health (NIC, disk, SMART, CPU, memory, Ceph)"
@@ -129,27 +126,27 @@ echo "    2) sec         — Security & drift detection (SSH failures, users, ce
 echo "    3) mail        — Postfix relay health (queue, SASL, TLS, bounces)"
 echo "    4) oauth-token — OAuth2 token expiry monitor (M365 / sasl-xoauth2)"
 echo ""
-echo "  Enter module numbers to install (space-separated), or 'all' for all four."
+echo "  Enter module numbers to enable (space-separated), or 'all' for all four."
 echo "  Example: 1 2    or    all"
 echo ""
 read -r -p "  Selection: " selection
 
-declare -A INSTALL_MODULE
+declare -A ENABLE_MODULE
 for m in "${MODULES[@]}"; do
-  INSTALL_MODULE[$m]=0
+  ENABLE_MODULE[$m]=0
 done
 
 if [[ "${selection,,}" == "all" ]]; then
   for m in "${MODULES[@]}"; do
-    INSTALL_MODULE[$m]=1
+    ENABLE_MODULE[$m]=1
   done
 else
   for token in $selection; do
     case "$token" in
-      1) INSTALL_MODULE[health]=1 ;;
-      2) INSTALL_MODULE[sec]=1 ;;
-      3) INSTALL_MODULE[mail]=1 ;;
-      4) INSTALL_MODULE[oauth-token]=1 ;;
+      1) ENABLE_MODULE[health]=1 ;;
+      2) ENABLE_MODULE[sec]=1 ;;
+      3) ENABLE_MODULE[mail]=1 ;;
+      4) ENABLE_MODULE[oauth-token]=1 ;;
       *) echo "  WARNING: Unknown selection '${token}' — ignoring" ;;
     esac
   done
@@ -157,21 +154,19 @@ fi
 
 SELECTED=()
 for m in "${MODULES[@]}"; do
-  [[ "${INSTALL_MODULE[$m]}" -eq 1 ]] && SELECTED+=("$m")
+  [[ "${ENABLE_MODULE[$m]}" -eq 1 ]] && SELECTED+=("$m")
 done
 
-if [[ "${#SELECTED[@]}" -eq 0 ]]; then
-  echo ""
-  echo "  No modules selected. Exiting."
-  exit 0
-fi
-
 echo ""
-echo "  Will install: ${SELECTED[*]}"
+if [[ "${#SELECTED[@]}" -gt 0 ]]; then
+  echo "  Will enable: ${SELECTED[*]}"
+else
+  echo "  No modules selected for activation (scripts will still be installed)."
+fi
 echo ""
 
 # ── Step 3: Optional dependency check ─────────────────────────────────────────
-if [[ "${INSTALL_MODULE[health]}" -eq 1 ]]; then
+if [[ "${ENABLE_MODULE[health]}" -eq 1 ]]; then
   echo "── Health module dependencies ─────────────────────────"
   for cmd in smartctl corosync-quorumtool pvecm; do
     if command -v "$cmd" &>/dev/null; then
@@ -183,7 +178,7 @@ if [[ "${INSTALL_MODULE[health]}" -eq 1 ]]; then
   echo ""
 fi
 
-if [[ "${INSTALL_MODULE[mail]}" -eq 1 ]] || [[ "${INSTALL_MODULE[oauth-token]}" -eq 1 ]]; then
+if [[ "${ENABLE_MODULE[mail]}" -eq 1 ]] || [[ "${ENABLE_MODULE[oauth-token]}" -eq 1 ]]; then
   echo "── Mail/OAuth module dependencies ─────────────────────"
   for cmd in postfix nc python3 curl; do
     if command -v "$cmd" &>/dev/null; then
@@ -209,6 +204,9 @@ fi
 mkdir -p "$LOG_DIR"
 echo "  Created: ${LOG_DIR}/"
 
+# State base directory
+mkdir -p "$STATE_BASE"
+
 # Config directory
 mkdir -p "$CONF_DIR"
 
@@ -230,71 +228,38 @@ echo "  Dispatcher installed: ${DISPATCHER}"
 
 echo ""
 
-# ── Step 5: Install selected modules ─────────────────────────────────────────
-echo "── Installing modules ──────────────────────────────────"
+# ── Step 5: Install all module scripts ───────────────────────────────────────
+echo "── Installing module scripts ───────────────────────────"
 echo ""
 
-for module in "${SELECTED[@]}"; do
+for module in "${MODULES[@]}"; do
   src_script="${SCRIPT_DIR}/hostcheck-${module}/hostcheck-${module}.sh"
   dst_script="${INSTALL_BIN_DIR}/hostcheck-${module}.sh"
   state_dir="${STATE_BASE}/${module}"
-  cron_file="/etc/cron.d/hostcheck-${module}"
-  log_file="${LOG_DIR}/hostcheck-${module}.log"
-  schedule="${MODULE_CRON_SCHEDULE[$module]}"
-
-  echo "  [${module}]"
 
   if [[ ! -f "$src_script" ]]; then
-    echo "    ERROR: Source script not found: ${src_script}"
-    echo "    Skipping ${module}."
+    echo "  [${module}]  ERROR: source not found: ${src_script} — skipping"
     echo ""
     continue
   fi
 
-  # Script
   cp "$src_script" "$dst_script"
   chmod 755 "$dst_script"
-  echo "    Script:    ${dst_script}"
-
-  # State dir
   mkdir -p "$state_dir"
-  echo "    State dir: ${state_dir}/"
+  echo "  [${module}]  ${dst_script}"
+done
 
-  # Log file (touch to create)
-  touch "$log_file"
-  echo "    Log:       ${log_file}"
+echo ""
 
-  # Cron job
-  cat > "$cron_file" <<EOF
-# hostcheck-${module} — installed by install.sh
-${schedule} root ${dst_script} >> /dev/null 2>&1
-EOF
-  chmod 644 "$cron_file"
-  echo "    Cron:      ${cron_file}  (${schedule})"
-
+# ── Step 6: Enable selected modules ──────────────────────────────────────────
+if [[ "${#SELECTED[@]}" -gt 0 ]]; then
+  echo "── Enabling selected modules ───────────────────────────"
   echo ""
-done
-
-# ── Step 6: Update MODULE_*_ENABLED flags in config ──────────────────────────
-echo "── Updating module flags in config ────────────────────"
-echo ""
-
-for module in "${MODULES[@]}"; do
-  flag_name="MODULE_${module//-/_}_ENABLED"
-  flag_name="${flag_name^^}"
-  if [[ "${INSTALL_MODULE[$module]}" -eq 1 ]]; then
-    value="true"
-  else
-    value="false"
-  fi
-  # Only update if the flag exists in the config
-  if grep -q "^${flag_name}=" "$CONF_FILE"; then
-    sed -i "s|^${flag_name}=.*|${flag_name}=\"${value}\"|" "$CONF_FILE"
-    echo "  ${flag_name}=\"${value}\""
-  fi
-done
-
-echo ""
+  for module in "${SELECTED[@]}"; do
+    "$DISPATCHER" enable "$module"
+  done
+  echo ""
+fi
 
 # ── Step 7: Summary ───────────────────────────────────────────────────────────
 echo "══════════════════════════════════════════════════════"
@@ -311,14 +276,20 @@ echo "       TELEGRAM_ENABLED=\"true\""
 echo "       TELEGRAM_BOT_TOKEN=\"<your-token>\""
 echo "       TELEGRAM_CHAT_ID=\"<your-chat-id>\""
 echo ""
-echo "  3. Test installed modules:"
-for module in "${SELECTED[@]}"; do
-  echo "       hostcheck ${module} --dry-run"
-done
+if [[ "${#SELECTED[@]}" -gt 0 ]]; then
+  echo "  3. Test enabled modules:"
+  for module in "${SELECTED[@]}"; do
+    echo "       hostcheck ${module} --dry-run"
+  done
+  echo ""
+fi
+echo "  4. Enable/disable modules at any time:"
+echo "       sudo hostcheck enable <module|all>"
+echo "       sudo hostcheck disable <module|all>"
 echo ""
-echo "  4. View logs:"
+echo "  5. View logs:"
 echo "       hostcheck log"
 echo ""
-echo "  5. Check cron schedule:"
-echo "       hostcheck cron"
+echo "  6. Check status:"
+echo "       hostcheck status"
 echo ""
