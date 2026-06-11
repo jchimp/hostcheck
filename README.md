@@ -2,9 +2,9 @@
 
 A cohesive collection of lightweight, cron-based monitoring scripts for Linux or Proxmox hosts. Catches system health issues, security problems, mail relay faults, and OAuth token expirations **before** they become outages.
 
-Also great for Postfix email relays for M365 or Google Apps.
+Sends Telegram and email notifications when alerts are detected.
 
-Install once, configure once, get alerts via Telegram and/or email.
+Also great for Postfix email relays for M365 or Google Apps.
 
 ---
 
@@ -13,6 +13,9 @@ Install once, configure once, get alerts via Telegram and/or email.
 ### Install
 
 ```bash
+git clone https://github.com/jchimp/hostcheck.git
+cd hostcheck/
+chmod +x install.sh
 sudo ./install.sh
 ```
 
