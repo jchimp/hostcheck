@@ -40,7 +40,7 @@ TELEGRAM_CHAT_ID=""
 
 EMAIL_ENABLED="false"
 EMAIL_TO=""
-EMAIL_FROM="security@$(hostname -f 2>/dev/null || hostname)"
+EMAIL_FROM="hostcheck-sec@$(hostname -f 2>/dev/null || hostname)"
 
 SYSLOG_ENABLED="true"
 SYSLOG_TAG="hostcheck-sec"
