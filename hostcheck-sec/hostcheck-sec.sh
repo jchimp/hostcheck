@@ -374,6 +374,24 @@ check_new_users() {
   fi
 }
 
+_uu_is_active() {
+  # 1. Security origin is uncommented in unattended-upgrades config
+  local uu_conf="/etc/apt/apt.conf.d/50unattended-upgrades"
+  grep -qE '^\s*"\$\{distro_id\}:\$\{distro_codename\}-security"' "$uu_conf" 2>/dev/null || return 1
+
+  # 2. Daily unattended upgrades are enabled
+  local uu_period="/etc/apt/apt.conf.d/20auto-upgrades"
+  grep -qE 'APT::Periodic::Unattended-Upgrade\s+"1"' "$uu_period" 2>/dev/null || return 1
+
+  # 3. Has run today or yesterday
+  local uu_log="/var/log/unattended-upgrades/unattended-upgrades.log"
+  [[ -f "$uu_log" ]] || return 1
+  local today yesterday
+  today="$(date +%Y-%m-%d)"
+  yesterday="$(date -d yesterday +%Y-%m-%d)"
+  grep -qE "^($today|$yesterday)" "$uu_log" 2>/dev/null || return 1
+}
+
 check_updates() {
   [[ "$CHECK_UPDATES" == "true" ]] || return 0
   command -v apt &>/dev/null || { log "apt not found — skipping updates check"; return 0; }
@@ -382,11 +400,15 @@ check_updates() {
   local upgradable
   upgradable="$(apt list --upgradable 2>/dev/null | grep -i security || true)"
 
-  if [[ -n "$upgradable" ]]; then
-    local count
-    count="$(echo "$upgradable" | wc -l)"
-    local packages
-    packages="$(echo "$upgradable" | head -10 | awk -F/ '{print $1}' | tr '\n' ', ' | sed 's/,$//')"
+  [[ -n "$upgradable" ]] || return 0
+
+  local count packages
+  count="$(echo "$upgradable" | wc -l)"
+  packages="$(echo "$upgradable" | head -10 | awk -F/ '{print $1}' | tr '\n' ', ' | sed 's/,$//')"
+
+  if _uu_is_active; then
+    log "${count} security update(s) pending, unattended-upgrades is active: ${packages}"
+  else
     log_alert "WARNING" "UPDATES" "${count} security update(s) available: ${packages}"
   fi
 }
