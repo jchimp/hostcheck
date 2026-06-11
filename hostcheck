@@ -63,6 +63,7 @@ Commands:
   cron                       List installed hostcheck cron jobs
   log [module]               Tail log(s) — omit module to tail all
   status                     Show enabled modules and notification config
+  testalert                  Send a test notification via all enabled channels
   help                       Show this help
 
 Module args (passed through to the underlying script):
@@ -238,6 +239,94 @@ cmd_status() {
   echo ""
 }
 
+# ── Test Alert ───────────────────────────────────────────────────────────────
+cmd_testalert() {
+  if [[ ! -f "$CONF_FILE" ]]; then
+    die "Config not found: ${CONF_FILE}. Run install.sh to set up hostcheck."
+  fi
+
+  # shellcheck disable=SC1090
+  source "$CONF_FILE"
+
+  local hostname_short
+  hostname_short="$(hostname -s 2>/dev/null || hostname)"
+  local timestamp
+  timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+  local sent=0
+
+  echo "Sending test notifications..."
+
+  if [[ "${TELEGRAM_ENABLED:-false}" == "true" ]]; then
+    if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
+      echo "  Telegram: SKIP (enabled but token/chat_id not set)"
+    else
+      local tg_msg
+      tg_msg="$(printf '<b>hostcheck test alert</b>\nThis is a test notification from hostcheck on <code>%s</code>.\n<i>%s</i>' "$hostname_short" "$timestamp")"
+      if curl -s --max-time 10 \
+          -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          -d parse_mode="HTML" \
+          -d text="${tg_msg}" \
+          >/dev/null 2>&1; then
+        echo "  Telegram: OK"
+        sent=$((sent + 1))
+      else
+        echo "  Telegram: FAILED (curl error)"
+      fi
+    fi
+  else
+    echo "  Telegram: SKIP (disabled)"
+  fi
+
+  if [[ "${EMAIL_ENABLED:-false}" == "true" ]]; then
+    if [[ -z "${EMAIL_TO:-}" ]]; then
+      echo "  Email:    SKIP (enabled but EMAIL_TO not set)"
+    else
+      local subject="[hostcheck] test alert from ${hostname_short}"
+      local body
+      body="$(printf 'This is a test notification from hostcheck.\n\nHost: %s\nTime: %s\n' "$hostname_short" "$timestamp")"
+      local mail_ok=0
+      if command -v msmtp &>/dev/null; then
+        printf 'From: %s\nTo: %s\nSubject: %s\n\n%s\n' \
+          "${EMAIL_FROM:-hostcheck@${hostname_short}}" "$EMAIL_TO" "$subject" "$body" \
+          | msmtp "$EMAIL_TO" 2>/dev/null && mail_ok=1
+      elif command -v sendmail &>/dev/null; then
+        printf 'From: %s\nTo: %s\nSubject: %s\n\n%s\n' \
+          "${EMAIL_FROM:-hostcheck@${hostname_short}}" "$EMAIL_TO" "$subject" "$body" \
+          | sendmail -t 2>/dev/null && mail_ok=1
+      elif command -v mail &>/dev/null; then
+        echo "$body" | mail -s "$subject" "$EMAIL_TO" 2>/dev/null && mail_ok=1
+      else
+        echo "  Email:    SKIP (no mail binary found: msmtp, sendmail, mail)"
+        mail_ok=-1
+      fi
+      if [[ "$mail_ok" -eq 1 ]]; then
+        echo "  Email:    OK  (to: ${EMAIL_TO})"
+        sent=$((sent + 1))
+      elif [[ "$mail_ok" -eq 0 ]]; then
+        echo "  Email:    FAILED (send error)"
+      fi
+    fi
+  else
+    echo "  Email:    SKIP (disabled)"
+  fi
+
+  if [[ "${SYSLOG_ENABLED:-true}" == "true" ]]; then
+    if command -v logger &>/dev/null; then
+      logger -t hostcheck "test alert from ${hostname_short} at ${timestamp}"
+      echo "  Syslog:   OK"
+      sent=$((sent + 1))
+    else
+      echo "  Syslog:   SKIP (logger not found)"
+    fi
+  else
+    echo "  Syslog:   SKIP (disabled)"
+  fi
+
+  echo ""
+  echo "Done. ${sent} channel(s) notified."
+}
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 case "${1:-}" in
   health|sec|mail|oauth-token)
@@ -261,6 +350,9 @@ case "${1:-}" in
     ;;
   status)
     cmd_status
+    ;;
+  testalert)
+    cmd_testalert
     ;;
   help|-h|--help)
     usage
