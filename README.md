@@ -13,6 +13,7 @@ Also great for Postfix email relays for M365 or Google Apps.
 ### Install
 
 ```bash
+cd /tmp
 git clone https://github.com/jchimp/hostcheck.git
 cd hostcheck/
 chmod +x install.sh
